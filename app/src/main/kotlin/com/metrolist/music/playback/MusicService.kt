@@ -1014,9 +1014,9 @@ class MusicService :
         reason: Int,
     ) {
         lastPlaybackSpeed = -1.0f // force update song
-        
+
         discordUpdateJob?.cancel()
-        
+
         // Auto load more songs
         if (dataStore.get(AutoLoadMoreKey, true) &&
             reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT &&
@@ -1139,7 +1139,7 @@ class MusicService :
         if (playbackParameters.speed != lastPlaybackSpeed) {
             lastPlaybackSpeed = playbackParameters.speed
             discordUpdateJob?.cancel()
-            
+
             // update scheduling thingy
             discordUpdateJob = scope.launch {
                 delay(1000)

@@ -1,10 +1,12 @@
 [versions]
 androidGradlePlugin = "8.13.0"
 annotation = "1.9.1"
+coreSplashscreen = "1.0.1"
 json = "20250517"
 kotlin = "2.2.10"
 compose = "1.9.2"
 lifecycle = "2.9.4"
+material = "1.13.0"
 material3 = "1.4.0"
 appcompat = "1.7.1"
 media3 = "1.7.1"
@@ -38,12 +40,14 @@ extractor = "06b7ae2"
 
 [libraries]
 annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
+core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutinesGuava" }
 concurrent-futures = { module = "androidx.concurrent:concurrent-futures-ktx", version.ref = "concurrentFutures" }
 
 gradle = { module = "com.android.tools.build:gradle", version.ref = "androidGradlePlugin" }
 activity = { module = "androidx.activity:activity-compose", version.ref = "activity" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
 navigation = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
 hilt-navigation = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigation" }
 datastore = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }

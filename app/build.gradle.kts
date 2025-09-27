@@ -34,6 +34,14 @@ android {
             }
             buildConfigField("String", "ARCHITECTURE", "\"universal\"")
         }
+        create("sorrow") {
+            dimension = "abi"
+            applicationIdSuffix = ".sorrow"
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            }
+            buildConfigField("String", "ARCHITECTURE", "\"universal\"")
+        }
         create("arm64") {
             dimension = "abi"
             ndk { abiFilters += "arm64-v8a" }
@@ -89,11 +97,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
-            signingConfig = if (System.getenv("GITHUB_EVENT_NAME") == "pull_request") {
+            /*signingConfig = if (System.getenv("GITHUB_EVENT_NAME") == "pull_request") {
                 signingConfigs.getByName("debug")
             } else {
                 signingConfigs.getByName("persistentDebug")
-            }
+            }*/
         }
     }
 
@@ -239,4 +247,7 @@ dependencies {
     implementation(libs.multidex)
 
     implementation(libs.timber)
+
+    implementation(libs.material)
+    implementation(libs.core.splashscreen)
 }

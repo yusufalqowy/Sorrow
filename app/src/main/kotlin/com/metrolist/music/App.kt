@@ -18,6 +18,8 @@ import coil3.disk.directory
 import coil3.request.CachePolicy
 import coil3.request.allowHardware
 import coil3.request.crossfade
+import com.google.android.material.color.DynamicColors
+import com.materialkolor.dynamiccolor.DynamicColor
 import com.metrolist.music.constants.*
 import com.metrolist.music.extensions.*
 import com.metrolist.music.utils.dataStore
@@ -48,11 +50,12 @@ import okhttp3.Credentials
 class App : Application(), SingletonImageLoader.Factory {
     // Create a proper application scope that will be cancelled when the app is destroyed
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    
+
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
-        instance = this;
+        DynamicColors.applyToActivitiesIfAvailable(this)
+        instance = this
         Timber.plant(Timber.DebugTree())
 
         val locale = Locale.getDefault()

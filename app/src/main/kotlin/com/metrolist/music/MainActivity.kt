@@ -119,6 +119,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -230,7 +231,7 @@ class MainActivity : ComponentActivity() {
     private var latestVersionName by mutableStateOf(BuildConfig.VERSION_NAME)
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
-    
+
     private val serviceConnection =
         object : ServiceConnection {
             override fun onServiceConnected(
@@ -295,6 +296,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         window.decorView.layoutDirection = View.LAYOUT_DIRECTION_LTR
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -306,7 +308,7 @@ class MainActivity : ComponentActivity() {
                 ?: Locale.getDefault()
             setAppLocale(this, locale)
         }
-        
+
         lifecycleScope.launch {
             dataStore.data
                 .map { it[DisableScreenshotKey] ?: false }
@@ -338,11 +340,11 @@ class MainActivity : ComponentActivity() {
                                 if (it != BuildConfig.VERSION_NAME && notifEnabled) {
                                    val downloadUrl = Updater.getLatestDownloadUrl()
                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
-    
-                                   val flags = PendingIntent.FLAG_UPDATE_CURRENT or 
+
+                                   val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                                        (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
                                    val pending = PendingIntent.getActivity(this@MainActivity, 1001, intent, flags)
-    
+
                                    val notif = NotificationCompat.Builder(this@MainActivity, "updates")
                                        .setSmallIcon(R.drawable.update)
                                        .setContentTitle(getString(R.string.update_available_title))
@@ -537,9 +539,9 @@ class MainActivity : ComponentActivity() {
                     val playerBottomSheetState =
                         rememberBottomSheetState(
                             dismissedBound = 0.dp,
-                            collapsedBound = bottomInset + 
+                            collapsedBound = bottomInset +
                                 (if (!showRail && shouldShowNavigationBar) getNavPadding() else 0.dp) + // Only add nav padding when not showing rail
-                                (if (useNewMiniPlayerDesign) MiniPlayerBottomSpacing else 0.dp) + 
+                                (if (useNewMiniPlayerDesign) MiniPlayerBottomSpacing else 0.dp) +
                                 MiniPlayerHeight,
                             expandedBound = maxHeight,
                         )
@@ -1121,7 +1123,7 @@ class MainActivity : ComponentActivity() {
                                                 },
                                             )
                                         }
-  
+
                                         Spacer(modifier = Modifier.weight(1f))
                                     }
                                 }
@@ -1275,7 +1277,7 @@ class MainActivity : ComponentActivity() {
                     uri.host == "youtu.be" -> uri.pathSegments.firstOrNull()
                     else -> null
                 }
-                
+
                 val playlistId = uri.getQueryParameter("list")
 
                 videoId?.let {
