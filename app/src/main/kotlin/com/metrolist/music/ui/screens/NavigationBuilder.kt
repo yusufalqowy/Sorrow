@@ -213,12 +213,16 @@ fun NavGraphBuilder.navigationBuilder(
         ArtistItemsScreen(navController, scrollBehavior)
     }
     composable(
-        route = "online_playlist/{playlistId}",
+        route = "online_playlist/{playlistId}?requestToPlay={requestToPlay}",
         arguments =
         listOf(
             navArgument("playlistId") {
                 type = NavType.StringType
             },
+            navArgument("requestToPlay"){
+                type = NavType.BoolType
+                defaultValue = false
+            }
         ),
     ) {
         OnlinePlaylistScreen(navController, scrollBehavior)

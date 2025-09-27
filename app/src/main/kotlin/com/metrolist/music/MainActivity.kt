@@ -118,6 +118,7 @@ import androidx.core.app.TaskStackBuilder
 import android.app.PendingIntent
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -145,6 +146,7 @@ import com.metrolist.music.constants.DarkModeKey
 import com.metrolist.music.constants.DefaultOpenTabKey
 import com.metrolist.music.constants.DisableScreenshotKey
 import com.metrolist.music.constants.DynamicThemeKey
+import com.metrolist.music.constants.InnerTubeCookieKey
 import com.metrolist.music.constants.MiniPlayerHeight
 import com.metrolist.music.constants.MiniPlayerBottomSpacing
 import com.metrolist.music.constants.UpdateNotificationsEnabledKey
@@ -233,7 +235,7 @@ class MainActivity : ComponentActivity() {
     private var latestVersionName by mutableStateOf(BuildConfig.VERSION_NAME)
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
-    
+
     private val serviceConnection =
         object : ServiceConnection {
             override fun onServiceConnected(
@@ -309,7 +311,7 @@ class MainActivity : ComponentActivity() {
                 ?: Locale.getDefault()
             setAppLocale(this, locale)
         }
-        
+
         lifecycleScope.launch {
             dataStore.data
                 .map { it[DisableScreenshotKey] ?: false }
@@ -341,11 +343,11 @@ class MainActivity : ComponentActivity() {
                                 if (it != BuildConfig.VERSION_NAME && notifEnabled) {
                                    val downloadUrl = Updater.getLatestDownloadUrl()
                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
-    
-                                   val flags = PendingIntent.FLAG_UPDATE_CURRENT or 
+
+                                   val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                                        (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
                                    val pending = PendingIntent.getActivity(this@MainActivity, 1001, intent, flags)
-    
+
                                    val notif = NotificationCompat.Builder(this@MainActivity, "updates")
                                        .setSmallIcon(R.drawable.update)
                                        .setContentTitle(getString(R.string.update_available_title))
@@ -371,14 +373,14 @@ class MainActivity : ComponentActivity() {
             val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
                 if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
             }
-            
+
             LaunchedEffect(useDarkTheme) {
                 setSystemBarAppearance(useDarkTheme)
             }
-            
+
             val pureBlackEnabled by rememberPreference(PureBlackKey, defaultValue = false)
-            val pureBlack = remember(pureBlackEnabled, useDarkTheme) { 
-                pureBlackEnabled && useDarkTheme 
+            val pureBlack = remember(pureBlackEnabled, useDarkTheme) {
+                pureBlackEnabled && useDarkTheme
             }
 
             var themeColor by rememberSaveable(stateSaver = ColorSaver) {
@@ -391,7 +393,7 @@ class MainActivity : ComponentActivity() {
                     themeColor = DefaultThemeColor
                     return@LaunchedEffect
                 }
-                
+
                 playerConnection.service.currentMediaMetadata.collectLatest { song ->
                     if (song?.thumbnailUrl != null) {
                         withContext(Dispatchers.IO) {
@@ -406,7 +408,7 @@ class MainActivity : ComponentActivity() {
                                         .crossfade(false)
                                         .build()
                                 )
-                                themeColor = result.image?.toBitmap()?.extractThemeColor() 
+                                themeColor = result.image?.toBitmap()?.extractThemeColor()
                                     ?: DefaultThemeColor
                             } catch (e: Exception) {
                                 // Fallback to default on error
@@ -553,9 +555,9 @@ class MainActivity : ComponentActivity() {
                     val playerBottomSheetState =
                         rememberBottomSheetState(
                             dismissedBound = 0.dp,
-                            collapsedBound = bottomInset + 
+                            collapsedBound = bottomInset +
                                 (if (!showRail && shouldShowNavigationBar) getNavPadding() else 0.dp) +
-                                (if (useNewMiniPlayerDesign) MiniPlayerBottomSpacing else 0.dp) + 
+                                (if (useNewMiniPlayerDesign) MiniPlayerBottomSpacing else 0.dp) +
                                 MiniPlayerHeight,
                             expandedBound = maxHeight,
                         )
@@ -638,7 +640,7 @@ class MainActivity : ComponentActivity() {
                                 searchBarScrollBehavior.state.resetHeightOffset()
                             }
                         }
-                        
+
                         searchBarScrollBehavior.state.resetHeightOffset()
                         topAppBarScrollBehavior.state.resetHeightOffset()
 
@@ -647,7 +649,7 @@ class MainActivity : ComponentActivity() {
                             setPreviousTab(it)
                         }
                     }
-                    
+
                     LaunchedEffect(active) {
                         if (active) {
                             searchBarScrollBehavior.state.resetHeightOffset()
@@ -1126,7 +1128,7 @@ class MainActivity : ComponentActivity() {
                                                 },
                                             )
                                         }
-  
+
                                         Spacer(modifier = Modifier.weight(1f))
                                     }
                                 }
@@ -1293,7 +1295,7 @@ class MainActivity : ComponentActivity() {
                         }.onFailure { reportException(it) }
                     }
                 } else {
-                    navController.navigate("online_playlist/$playlistId")
+                    navController.navigate("online_playlist/$playlistId?requestToPlay=true")
                 }
             }
 
@@ -1311,23 +1313,35 @@ class MainActivity : ComponentActivity() {
                     uri.host == "youtu.be" -> uri.pathSegments.firstOrNull()
                     else -> null
                 }
-                
+
                 val playlistId = uri.getQueryParameter("list")
 
-                videoId?.let {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        YouTube.queue(listOf(it), playlistId).onSuccess { queue ->
-                            withContext(Dispatchers.Main) {
-                                playerConnection?.playQueue(
-                                    YouTubeQueue(
-                                        WatchEndpoint(videoId = queue.firstOrNull()?.id, playlistId = playlistId),
-                                        queue.firstOrNull()?.toMediaMetadata()
-                                    )
+                if(videoId != null){
+                    coroutineScope.launch {
+                        withContext(Dispatchers.IO) {
+                            YouTube.queue(listOf(videoId), playlistId)
+                        }.onSuccess {
+                            playerConnection?.playQueue(
+                                YouTubeQueue(
+                                    WatchEndpoint(videoId = it.firstOrNull()?.id, playlistId = playlistId),
+                                    it.firstOrNull()?.toMediaMetadata()
                                 )
-                            }
+                            )
                         }.onFailure {
                             reportException(it)
                         }
+                    }
+                }else if(playlistId != null){
+                    when(playlistId){
+                        "LM" ->{
+                            val loginCookie = dataStore.get(InnerTubeCookieKey, "")
+                            if (loginCookie.isNotEmpty()){
+                                navController.navigate("online_playlist/$playlistId?requestToPlay=true")
+                            }else{
+                                Toast.makeText(this,"Login to view your liked music!", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        else -> navController.navigate("online_playlist/$playlistId?requestToPlay=true")
                     }
                 }
             }
