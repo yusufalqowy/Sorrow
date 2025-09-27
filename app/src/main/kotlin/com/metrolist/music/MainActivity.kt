@@ -118,6 +118,7 @@ import androidx.core.app.TaskStackBuilder
 import android.app.PendingIntent
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -146,6 +147,7 @@ import com.metrolist.music.constants.DarkModeKey
 import com.metrolist.music.constants.DefaultOpenTabKey
 import com.metrolist.music.constants.DisableScreenshotKey
 import com.metrolist.music.constants.DynamicThemeKey
+import com.metrolist.music.constants.InnerTubeCookieKey
 import com.metrolist.music.constants.MiniPlayerHeight
 import com.metrolist.music.constants.MiniPlayerBottomSpacing
 import com.metrolist.music.constants.UpdateNotificationsEnabledKey
@@ -1295,7 +1297,7 @@ class MainActivity : ComponentActivity() {
                         }.onFailure { reportException(it) }
                     }
                 } else {
-                    navController.navigate("online_playlist/$playlistId")
+                    navController.navigate("online_playlist/$playlistId?requestToPlay=true")
                 }
             }
 
@@ -1316,20 +1318,32 @@ class MainActivity : ComponentActivity() {
 
                 val playlistId = uri.getQueryParameter("list")
 
-                videoId?.let {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        YouTube.queue(listOf(it), playlistId).onSuccess { queue ->
-                            withContext(Dispatchers.Main) {
-                                playerConnection?.playQueue(
-                                    YouTubeQueue(
-                                        WatchEndpoint(videoId = queue.firstOrNull()?.id, playlistId = playlistId),
-                                        queue.firstOrNull()?.toMediaMetadata()
-                                    )
+                if(videoId != null){
+                    coroutineScope.launch {
+                        withContext(Dispatchers.IO) {
+                            YouTube.queue(listOf(videoId), playlistId)
+                        }.onSuccess {
+                            playerConnection?.playQueue(
+                                YouTubeQueue(
+                                    WatchEndpoint(videoId = it.firstOrNull()?.id, playlistId = playlistId),
+                                    it.firstOrNull()?.toMediaMetadata()
                                 )
-                            }
+                            )
                         }.onFailure {
                             reportException(it)
                         }
+                    }
+                }else if(playlistId != null){
+                    when(playlistId){
+                        "LM" ->{
+                            val loginCookie = dataStore.get(InnerTubeCookieKey, "")
+                            if (loginCookie.isNotEmpty()){
+                                navController.navigate("online_playlist/$playlistId?requestToPlay=true")
+                            }else{
+                                Toast.makeText(this,"Login to view your liked music!", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        else -> navController.navigate("online_playlist/$playlistId?requestToPlay=true")
                     }
                 }
             }

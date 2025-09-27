@@ -42,6 +42,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -93,6 +94,7 @@ import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.extensions.togglePlayPause
 import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.playback.queues.ListQueue
+import com.metrolist.music.playback.queues.YouTubeQueue
 import com.metrolist.music.ui.component.AutoResizeText
 import com.metrolist.music.ui.component.DraggableScrollbar
 import com.metrolist.music.ui.component.FontSizeRange
@@ -201,6 +203,18 @@ fun OnlinePlaylistScreen(
                     viewModel.loadMoreSongs()
                 }
             }
+    }
+
+    LaunchedEffect(playlist?.shuffleEndpoint) {
+        if (viewModel.requestToPlay){
+            playlist?.shuffleEndpoint?.let { shuffle ->
+                playerConnection.playQueue(
+                    YouTubeQueue(
+                        shuffle
+                    )
+                )
+            }
+        }
     }
 
     Box(
@@ -370,7 +384,7 @@ fun OnlinePlaylistScreen(
                                                             if (dbPlaylist?.playlist?.bookmarkedAt != null) R.drawable.favorite else R.drawable.favorite_border
                                                         ),
                                                         contentDescription = null,
-                                                        tint = if (dbPlaylist?.playlist?.bookmarkedAt != null) MaterialTheme.colorScheme.error else LocalContentColor.current
+                                                        tint = LocalContentColor.current
                                                     )
                                                 }
                                             }
@@ -576,7 +590,7 @@ fun OnlinePlaylistScreen(
                             if (error != null) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(
-                                    onClick = { 
+                                    onClick = {
                                         viewModel.retry()
                                     }
                                 ) {
