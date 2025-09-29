@@ -119,6 +119,24 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <receiver android:name=".ui.widget.PlayerWidgetSquareReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/player_widget_square_info"/>
+        </receiver>
+
+        <receiver android:name=".ui.widget.PlayerWidgetCircleReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/player_widget_circle_info"/>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.FileProvider"
@@ -163,7 +181,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
-        </receiver>        
+        </receiver>
 
         <meta-data
             android:name="com.google.android.gms.car.application"

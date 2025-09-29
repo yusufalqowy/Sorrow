@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     kotlin("android")
     kotlin("kapt")
+    kotlin("plugin.serialization") version "2.2.10"
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.compose.compiler)
@@ -239,4 +240,8 @@ dependencies {
     implementation(libs.multidex)
 
     implementation(libs.timber)
+
+    implementation(libs.material)
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
 }

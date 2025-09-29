@@ -7,16 +7,25 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.database.SQLException
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.ThumbnailUtils
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.LoudnessEnhancer
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Binder
+import android.os.Build
 import android.util.Log
+import androidx.collection.LruCache
 import androidx.core.content.getSystemService
+import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -56,6 +65,10 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionToken
+import coil3.asDrawable
+import coil3.imageLoader
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import com.google.common.util.concurrent.MoreExecutors
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.models.SongItem
@@ -106,11 +119,17 @@ import com.metrolist.music.extensions.toQueue
 import com.metrolist.music.lyrics.LyricsHelper
 import com.metrolist.music.models.PersistPlayerState
 import com.metrolist.music.models.PersistQueue
+import com.metrolist.music.models.WidgetMetadata
 import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.playback.queues.EmptyQueue
 import com.metrolist.music.playback.queues.Queue
 import com.metrolist.music.playback.queues.YouTubeQueue
 import com.metrolist.music.playback.queues.filterExplicit
+import com.metrolist.music.ui.theme.extractThemeColor
+import com.metrolist.music.ui.widget.PlayerActions
+import com.metrolist.music.ui.widget.PlayerWidgetCircle
+import com.metrolist.music.ui.widget.PlayerWidgetSquare
+import com.metrolist.music.ui.widget.WidgetMetadataState
 import com.metrolist.music.utils.CoilBitmapLoader
 import com.metrolist.music.utils.DiscordRPC
 import com.metrolist.music.utils.NetworkConnectivityObserver
@@ -143,10 +162,14 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import timber.log.Timber
+import java.io.ByteArrayOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.time.LocalDateTime
 import javax.inject.Inject
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -227,6 +250,9 @@ class MusicService :
     val automixItems = MutableStateFlow<List<MediaItem>>(emptyList())
 
     private var consecutivePlaybackErr = 0
+
+    private var debouncedWidgetUpdateJob: Job? = null
+    private val WIDGET_STATE_DEBOUNCE_MS = 300L
 
     override fun onCreate() {
         super.onCreate()
@@ -321,6 +347,7 @@ class MusicService :
 
         currentSong.debounce(1000).collect(scope) { song ->
             updateNotification()
+            requestWidgetFullUpdate(true)
             if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
                 discordRpc?.updateSong(song, player.currentPosition, player.playbackParameters.speed, dataStore.get(DiscordUseDetailsKey, false))
             } else {
@@ -1014,9 +1041,9 @@ class MusicService :
         reason: Int,
     ) {
         lastPlaybackSpeed = -1.0f // force update song
-        
+
         discordUpdateJob?.cancel()
-        
+
         // Auto load more songs
         if (dataStore.get(AutoLoadMoreKey, true) &&
             reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT &&
@@ -1053,6 +1080,7 @@ class MusicService :
         player: Player,
         events: Player.Events,
     ) {
+        requestWidgetFullUpdate()
         if (events.containsAny(
                 Player.EVENT_PLAYBACK_STATE_CHANGED,
                 Player.EVENT_PLAY_WHEN_READY_CHANGED
@@ -1139,7 +1167,7 @@ class MusicService :
         if (playbackParameters.speed != lastPlaybackSpeed) {
             lastPlaybackSpeed = playbackParameters.speed
             discordUpdateJob?.cancel()
-            
+
             // update scheduling thingy
             discordUpdateJob = scope.launch {
                 delay(1000)
@@ -1449,6 +1477,155 @@ class MusicService :
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = mediaSession
+
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        super.onIsPlayingChanged(isPlaying)
+        requestWidgetFullUpdate()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.action?.let { action ->
+            val player = mediaSession.player
+            val hasItemToPlay = !player.currentTimeline.isEmpty && player.currentMediaItemIndex != C.INDEX_UNSET
+
+            when (action) {
+                PlayerActions.PLAY_PAUSE -> {
+                    if (hasItemToPlay) {
+                        player.prepare()
+                        player.playWhenReady = !player.playWhenReady
+                    }else{
+                        database.allSongs()
+                    }
+                }
+
+                PlayerActions.NEXT -> player.seekToNext()
+                PlayerActions.PREVIOUS -> player.seekToPrevious()
+            }
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private fun requestWidgetFullUpdate(force: Boolean = false) {
+        debouncedWidgetUpdateJob?.cancel()
+        debouncedWidgetUpdateJob = scope.launch {
+            if (!force) {
+                delay(WIDGET_STATE_DEBOUNCE_MS)
+            }
+            processWidgetUpdateInternal()
+        }
+    }
+
+
+    private suspend fun processWidgetUpdateInternal() {
+        updateGlanceWidgets(buildWidgetMetadata())
+    }
+
+    private suspend fun buildWidgetMetadata(): WidgetMetadata {
+        val player = mediaSession.player
+        val currentItem = withContext(Dispatchers.Main) { player.currentMediaItem }
+        val isPlaying = withContext(Dispatchers.Main) { player.isPlaying }
+        val isLoading = withContext(Dispatchers.Main) { player.isLoading }
+        val metadata = currentItem?.metadata
+        val artworkUri = currentItem?.mediaMetadata?.artworkUri
+        val artworkData = currentItem?.mediaMetadata?.artworkData
+        val (artBytes, bitmap) = getWidgetThumbnail(artworkData, artworkUri)
+        val baseColor = withContext(Dispatchers.Main){ bitmap?.extractThemeColor() }
+
+        return WidgetMetadata(
+            id = metadata?.id,
+            title = metadata?.title,
+            artists = metadata?.artists?.joinToString(", ") { it.name },
+            thumbnailUrl = artworkUri.toString(),
+            thumbnailBitmapData = artBytes,
+            albumId = metadata?.album?.id,
+            explicit = metadata?.explicit ?: false,
+            liked = metadata?.liked ?: false,
+            isPlaying = isPlaying,
+            isLoading = isLoading,
+            baseColor = baseColor?.value
+        )
+    }
+
+    private suspend fun updateGlanceWidgets(widgetMetadata: WidgetMetadata) = withContext(Dispatchers.IO) {
+        try {
+            val glanceManager = GlanceAppWidgetManager(applicationContext)
+
+            val squareGlanceIds = glanceManager.getGlanceIds(PlayerWidgetSquare::class.java)
+            val circleGlanceIds = glanceManager.getGlanceIds(PlayerWidgetCircle::class.java)
+            if (squareGlanceIds.isNotEmpty()) {
+                squareGlanceIds.forEach { id ->
+                    updateAppWidgetState(applicationContext, WidgetMetadataState, id) { widgetMetadata }
+                }
+                PlayerWidgetSquare().update(applicationContext, squareGlanceIds.first())
+            }
+            if (circleGlanceIds.isNotEmpty()) {
+                circleGlanceIds.forEach { id ->
+                    updateAppWidgetState(applicationContext, WidgetMetadataState, id) { widgetMetadata }
+                }
+                PlayerWidgetCircle().update(applicationContext, circleGlanceIds.first())
+            }
+        } catch (e: Exception) {
+            Timber.e(e)
+        }
+    }
+
+
+    private val widgetArtByteArrayCache = LruCache<String, ByteArray>(5)
+
+    private suspend fun getWidgetThumbnail(embeddedArt: ByteArray?, artUri: Uri?): Pair<ByteArray?, Bitmap?> = withContext(Dispatchers.IO) {
+        var bitmap: Bitmap? = null
+        if (embeddedArt != null && embeddedArt.isNotEmpty()) {
+            bitmap = BitmapFactory.decodeByteArray(embeddedArt, 0, embeddedArt.size)
+            return@withContext embeddedArt to bitmap
+        }
+        val uri = artUri ?: return@withContext null to null
+        val artUriString = uri.toString()
+        val cachedArt = widgetArtByteArrayCache.get(artUriString)
+        if (cachedArt != null && cachedArt.isNotEmpty()) {
+            bitmap = BitmapFactory.decodeByteArray(cachedArt, 0, cachedArt.size)
+            return@withContext cachedArt to bitmap
+        }
+        val loadedArt = loadBitmapDataFromUri(uri = uri, context = baseContext)
+        if (loadedArt != null && loadedArt.isNotEmpty()) {
+            bitmap = BitmapFactory.decodeByteArray(loadedArt, 0, loadedArt.size)
+            widgetArtByteArrayCache.put(artUriString, loadedArt)
+        }
+        return@withContext loadedArt to bitmap
+    }
+
+    private suspend fun loadBitmapDataFromUri(context: Context, uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
+        try {
+            val request = ImageRequest.Builder(context).data(uri).allowHardware(false).build()
+            val drawable = context.imageLoader.execute(request).image?.asDrawable(context.resources)
+            drawable?.let {
+                val dimension = min(it.intrinsicWidth, it.intrinsicHeight)
+                val bitmap = ThumbnailUtils.extractThumbnail(it.toBitmap(), dimension, dimension)
+
+                var outputBytes: ByteArray
+                var quality = 90
+                val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSY
+                } else {
+                    Bitmap.CompressFormat.JPEG
+                }
+
+                do {
+                    ByteArrayOutputStream().use { outputStream ->
+                        bitmap.compress(compressFormat, quality, outputStream)
+                        outputBytes = outputStream.toByteArray()
+                        quality -= (quality * 0.1).roundToInt()
+                    }
+                } while(isActive &&
+                    outputBytes.size > 200 * 1024L &&
+                    quality > 5
+                )
+                outputBytes
+            }
+        } catch (e: Exception) {
+            Timber.tag("Get Bitmap").e(e, "Fallo al cargar bitmap desde URI: $uri")
+            null
+        }
+    }
 
     inner class MusicBinder : Binder() {
         val service: MusicService
