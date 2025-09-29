@@ -127,11 +127,11 @@ fun LyricsScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    
+
     // Keep the screen on when entering the screen
     DisposableEffect(Unit) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
+
         onDispose {
             // Remove the feature when exiting the screen
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -148,9 +148,9 @@ fun LyricsScreen(
     val repeatMode by playerConnection.repeatMode.collectAsState()
     val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
     val playerVolume = playerConnection.service.playerVolume.collectAsState()
-    
+
     // slider style preference
-    val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
+    val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.SQUIGGLY)
     val currentLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
 
@@ -159,7 +159,7 @@ fun LyricsScreen(
         if (currentLyrics == null) {
             // Small delay to ensure database state is stable
             delay(500)
-            
+
             coroutineScope.launch(Dispatchers.IO) {
                 try {
                     // Get LyricsHelper from Hilt
@@ -168,10 +168,10 @@ fun LyricsScreen(
                         com.metrolist.music.di.LyricsHelperEntryPoint::class.java
                     )
                     val lyricsHelper = entryPoint.lyricsHelper()
-                    
+
                     // Fetch lyrics automatically
                     val lyrics = lyricsHelper.getLyrics(mediaMetadata)
-                    
+
                     // Save to database
                     database.query {
                         upsert(LyricsEntity(mediaMetadata.id, lyrics))
@@ -215,7 +215,7 @@ fun LyricsScreen(
                     val result = runCatching {
                         context.imageLoader.execute(request).image
                     }.getOrNull()
-                    
+
                     if (result != null) {
                         val bitmap = result.toBitmap()
                         val palette = withContext(Dispatchers.Default) {
@@ -224,12 +224,12 @@ fun LyricsScreen(
                                 .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
                                 .generate()
                         }
-                        
+
                         val extractedColors = PlayerColorExtractor.extractGradientColors(
                             palette = palette,
                             fallbackColor = fallbackColor
                         )
-                        
+
                         gradientColorsCache[mediaMetadata.id] = extractedColors
                         gradientColors = extractedColors
                     } else {
@@ -366,7 +366,7 @@ fun LyricsScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        
+
                         // Now Playing info in center
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -385,7 +385,7 @@ fun LyricsScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        
+
                         // More button (right)
                         Box(
                             modifier = Modifier
@@ -416,7 +416,7 @@ fun LyricsScreen(
                             )
                         }
                     }
-                    
+
                     // Main content row
                     Row(
                         modifier = Modifier
@@ -441,7 +441,7 @@ fun LyricsScreen(
                                 )
                             }
                         }
-                        
+
                         // Left side - Controls only (from slider to volume)
                         Column(
                             modifier = Modifier
@@ -556,7 +556,7 @@ fun LyricsScreen(
                                     Icon(
                                         painter = painterResource(
                                             when (repeatMode) {
-                                                Player.REPEAT_MODE_OFF, 
+                                                Player.REPEAT_MODE_OFF,
                                                 Player.REPEAT_MODE_ALL -> R.drawable.repeat
                                                 Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
                                                 else -> R.drawable.repeat
@@ -709,7 +709,7 @@ fun LyricsScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        
+
                         // Centered content
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -728,7 +728,7 @@ fun LyricsScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        
+
                         // More button (right)
                         Box(
                             modifier = Modifier
@@ -881,7 +881,7 @@ fun LyricsScreen(
                                 Icon(
                                     painter = painterResource(
                                         when (repeatMode) {
-                                            Player.REPEAT_MODE_OFF, 
+                                            Player.REPEAT_MODE_OFF,
                                             Player.REPEAT_MODE_ALL -> R.drawable.repeat
                                             Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
                                             else -> R.drawable.repeat

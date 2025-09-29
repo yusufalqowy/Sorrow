@@ -1,6 +1,7 @@
 package com.metrolist.music.ui.component
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -9,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -25,6 +27,7 @@ fun BigSeekBar(
     modifier: Modifier = Modifier,
     background: Color = MaterialTheme.colorScheme.surfaceTint.copy(alpha = 0.13f),
     color: Color = MaterialTheme.colorScheme.primary,
+    enable: Boolean = true
 ) {
     var width by remember {
         mutableFloatStateOf(0f)
@@ -32,27 +35,34 @@ fun BigSeekBar(
 
     Canvas(
         modifier
+            .then(
+                if (enable){
+                    modifier.onPlaced {
+                        width = it.size.width.toFloat()
+                    }.pointerInput(progressProvider) {
+                        detectHorizontalDragGestures { _, dragAmount ->
+                            onProgressChange(
+                                (progressProvider() + dragAmount * 1.2f / width).coerceIn(
+                                    0f,
+                                    1f
+                                )
+                            )
+                        }
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .fillMaxWidth()
             .height(48.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .onPlaced {
-                width = it.size.width.toFloat()
-            }.pointerInput(progressProvider) {
-                detectHorizontalDragGestures { _, dragAmount ->
-                    onProgressChange(
-                        (progressProvider() + dragAmount * 1.2f / width).coerceIn(
-                            0f,
-                            1f
-                        )
-                    )
-                }
-            },
+            .clip(RoundedCornerShape(16.dp)),
     ) {
         drawRect(color = background)
-
-        drawRect(
-            color = color,
-            size = size.copy(width = size.width * progressProvider()),
-        )
+        if (enable){
+            drawRect(
+                color = color,
+                size = size.copy(width = size.width * progressProvider()),
+            )
+        }
     }
 }

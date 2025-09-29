@@ -10,8 +10,10 @@ import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FloatSpringSpec
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,6 +25,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +33,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -47,10 +51,18 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.IconToggleButtonColors
+import androidx.compose.material3.IconToggleButtonShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Slider
@@ -97,8 +109,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
-import androidx.core.graphics.ColorUtils
-import androidx.core.graphics.drawable.toBitmap
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.Player.STATE_ENDED
@@ -151,7 +161,7 @@ import kotlinx.coroutines.withContext
 import me.saket.squiggles.SquigglySlider
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BottomSheetPlayer(
     state: BottomSheetState,
@@ -171,7 +181,7 @@ fun BottomSheetPlayer(
         UseNewPlayerDesignKey,
         defaultValue = true
     )
-    
+
     val (useNewMiniPlayerDesign) = rememberPreference(
         UseNewMiniPlayerDesignKey,
         defaultValue = true
@@ -237,7 +247,7 @@ fun BottomSheetPlayer(
     val canSkipPrevious by remember { derivedStateOf { playerConnection.canSkipPrevious.value } }
     val canSkipNext by remember { derivedStateOf { playerConnection.canSkipNext.value } }
 
-    val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
+    val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.SQUIGGLY)
 
     var position by rememberSaveable(playbackState) {
         mutableLongStateOf(playerConnection.player.currentPosition)
@@ -252,11 +262,11 @@ fun BottomSheetPlayer(
     var gradientColors by remember {
         mutableStateOf<List<Color>>(emptyList())
     }
-    
+
     // Previous background states for smooth transitions
     var previousThumbnailUrl by remember { mutableStateOf<String?>(null) }
     var previousGradientColors by remember { mutableStateOf<List<Color>>(emptyList()) }
-    
+
     // Cache for gradient colors to prevent re-extraction for same songs
     val gradientColorsCache = remember { mutableMapOf<String, List<Color>>() }
 
@@ -267,7 +277,7 @@ fun BottomSheetPlayer(
     // Default gradient colors for fallback
     val defaultGradientColors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant)
     val fallbackColor = MaterialTheme.colorScheme.surface.toArgb()
-    
+
     // Update previous states when media changes
     LaunchedEffect(mediaMetadata?.id) {
         val currentThumbnail = mediaMetadata?.thumbnailUrl
@@ -276,7 +286,7 @@ fun BottomSheetPlayer(
             previousGradientColors = gradientColors
         }
     }
-    
+
     LaunchedEffect(mediaMetadata?.id, playerBackground) {
         if (playerBackground == PlayerBackgroundStyle.GRADIENT) {
             val currentMetadata = mediaMetadata
@@ -292,10 +302,10 @@ fun BottomSheetPlayer(
                         .allowHardware(false)
                         .build()
 
-                    val result = runCatching { 
+                    val result = runCatching {
                         context.imageLoader.execute(request)
                     }.getOrNull()
-                    
+
                     if (result != null) {
                         val bitmap = result.image?.toBitmap()
                         if (bitmap != null) {
@@ -305,13 +315,13 @@ fun BottomSheetPlayer(
                                     .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
                                     .generate()
                             }
-                        
+
                         // Use the new color extraction system
                         val extractedColors = PlayerColorExtractor.extractGradientColors(
                             palette = palette,
                             fallbackColor = fallbackColor
                         )
-                        
+
                         // Cache the extracted colors
                         gradientColorsCache[currentMetadata.id] = extractedColors
                         gradientColors = extractedColors
@@ -334,7 +344,7 @@ fun BottomSheetPlayer(
 
     val TextBackgroundColor =
         when (playerBackground) {
-            PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onBackground
+            PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onSurface
             PlayerBackgroundStyle.BLUR -> Color.White
             PlayerBackgroundStyle.GRADIENT -> Color.White
         }
@@ -472,7 +482,7 @@ fun BottomSheetPlayer(
         collapsedBound = dismissedBound + 1.dp,
         initialAnchor = 1
     )
-    
+
     val lyricsSheetState = rememberBottomSheetState(
         dismissedBound = 0.dp,
         expandedBound = state.expandedBound,
@@ -488,14 +498,14 @@ fun BottomSheetPlayer(
                 // Apply same enhanced fade logic to blur/gradient backgrounds
                 val progress = ((state.value - state.collapsedBound) / (state.expandedBound - state.collapsedBound))
                     .coerceIn(0f, 1f)
-                
+
                 // Only start fading when very close to dismissal (last 20%)
                 val fadeProgress = if (progress < 0.2f) {
                     ((0.2f - progress) / 0.2f).coerceIn(0f, 1f)
                 } else {
                     0f
                 }
-                
+
                 MaterialTheme.colorScheme.surface.copy(alpha = 1f - fadeProgress)
             }
             else -> {
@@ -503,14 +513,14 @@ fun BottomSheetPlayer(
                 // Calculate progress for fade effect
                 val progress = ((state.value - state.collapsedBound) / (state.expandedBound - state.collapsedBound))
                     .coerceIn(0f, 1f)
-                
+
                 // Only start fading when very close to dismissal (last 20%)
                 val fadeProgress = if (progress < 0.2f) {
                     ((0.2f - progress) / 0.2f).coerceIn(0f, 1f)
                 } else {
                     0f
                 }
-                
+
                 if (useBlackBackground) {
                     // Apply same logic to pure black background
                     Color.Black.copy(alpha = 1f - fadeProgress)
@@ -661,63 +671,30 @@ fun BottomSheetPlayer(
 
                     val favShape = RoundedCornerShape(
                         topStart = 10.dp, bottomStart = 10.dp,
-                        topEnd = 50.dp, bottomEnd = 50.dp  
+                        topEnd = 50.dp, bottomEnd = 50.dp
                     )
 
-                    Row(
+                    /*Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(shareShape)
-                                .background(textButtonColor)
-                                .clickable {
-                                    val intent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        type = "text/plain"
-                                        putExtra(
-                                            Intent.EXTRA_TEXT,
-                                            "https://music.youtube.com/watch?v=${mediaMetadata.id}"
-                                        )
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, null))
+                        FilledIconButton(
+                            onClick = {
+                                val intent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    type = "text/plain"
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "https://music.youtube.com/watch?v=${mediaMetadata.id}"
+                                    )
                                 }
+                                context.startActivity(Intent.createChooser(intent, null))
+                            },
+                            shapes = IconButtonDefaults.shapes()
                         ) {
-                            Image(
-                                painter = painterResource(R.drawable.share),
-                                contentDescription = null,
-                                colorFilter = ColorFilter.tint(iconButtonColor),
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .size(24.dp)
-                            )
+                            Icon(painter = painterResource(R.drawable.share), contentDescription = null)
                         }
-
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(favShape)
-                                .background(textButtonColor)
-                                .clickable {
-                                    playerConnection.toggleLike()
-                                }
-                        ) {
-                            Image(
-                                painter = painterResource(
-                                    if (currentSong?.song?.liked == true)
-                                        R.drawable.favorite
-                                    else R.drawable.favorite_border
-                                ),
-                                contentDescription = null,
-                                colorFilter = ColorFilter.tint(iconButtonColor),
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .size(24.dp)
-                            )
-                        }
-                    }
+                    }*/
                 } else {
                     Box(
                         modifier =
@@ -750,7 +727,7 @@ fun BottomSheetPlayer(
                     }
 
                     Spacer(modifier = Modifier.size(12.dp))
-                
+
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier =
@@ -787,6 +764,7 @@ fun BottomSheetPlayer(
 
             Spacer(Modifier.height(12.dp))
 
+            val sliderColor = if (useDarkTheme || playerBackground == PlayerBackgroundStyle.DEFAULT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
             when (sliderStyle) {
                 SliderStyle.DEFAULT -> {
                     Slider(
@@ -802,7 +780,7 @@ fun BottomSheetPlayer(
                             }
                             sliderPosition = null
                         },
-                        colors = PlayerSliderColors.defaultSliderColors(textButtonColor, playerBackground, useDarkTheme),
+                        colors = PlayerSliderColors.defaultSliderColors(sliderColor, playerBackground, useDarkTheme),
                         modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
                     )
                 }
@@ -821,7 +799,7 @@ fun BottomSheetPlayer(
                             }
                             sliderPosition = null
                         },
-                        colors = PlayerSliderColors.squigglySliderColors(textButtonColor, playerBackground, useDarkTheme),
+                        colors = PlayerSliderColors.squigglySliderColors(sliderColor, playerBackground, useDarkTheme),
                         modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
                         squigglesSpec =
                         SquigglySlider.SquigglesSpec(
@@ -849,7 +827,7 @@ fun BottomSheetPlayer(
                         track = { sliderState ->
                             PlayerSliderTrack(
                                 sliderState = sliderState,
-                                colors = PlayerSliderColors.slimSliderColors(textButtonColor, playerBackground, useDarkTheme)
+                                colors = PlayerSliderColors.slimSliderColors(sliderColor, playerBackground, useDarkTheme)
                             )
                         },
                         modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
@@ -899,31 +877,31 @@ fun BottomSheetPlayer(
                     Row(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .padding(horizontal = PlayerHorizontalPadding)
+                            .fillMaxWidth()
                     ) {
-
-                        FilledTonalIconButton(
+                        filledTonalIconButton(
                             onClick = playerConnection::seekToPrevious,
                             enabled = canSkipPrevious,
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = textButtonColor,
-                                contentColor = iconButtonColor
-                            ),
                             modifier = Modifier
-                                .size(width = sideButtonWidth, height = sideButtonHeight)
-                                .clip(RoundedCornerShape(32.dp))
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.skip_previous),
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
+                                .size(IconButtonDefaults.mediumContainerSize()),
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.skip_previous),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(IconButtonDefaults.mediumIconSize)
+                                )
+                            }
+                        )
 
                         Spacer(modifier = Modifier.width(16.dp))
 
-                        FilledIconButton(
-                            onClick = {
+                        filledIconToggleButton(
+                            checked = isPlaying,
+                            shapes = IconButtonDefaults.toggleableShapes(pressedShape = IconButtonDefaults.largePressedShape, checkedShape = IconButtonDefaults.largeSelectedRoundShape),
+                            colors = IconButtonDefaults.filledTonalIconToggleButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, checkedContainerColor = MaterialTheme.colorScheme.primary, checkedContentColor = MaterialTheme.colorScheme.onPrimary),
+                            onCheckedChange = {
                                 if (playbackState == STATE_ENDED) {
                                     playerConnection.player.seekTo(0, 0)
                                     playerConnection.player.playWhenReady = true
@@ -931,49 +909,41 @@ fun BottomSheetPlayer(
                                     playerConnection.player.togglePlayPause()
                                 }
                             },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = textButtonColor,
-                                contentColor = iconButtonColor
-                            ),
                             modifier = Modifier
-                                .size(width = playButtonWidth, height = playButtonHeight)
-                                .clip(RoundedCornerShape(32.dp))
-                        ) {
-                            Icon(
-                                painter = painterResource(
-                                    when {
-                                        playbackState == STATE_ENDED -> R.drawable.replay
-                                        isPlaying -> R.drawable.pause
-                                        else -> R.drawable.play
-                                    }
-                                ),
-                                contentDescription = null,
-                                modifier = Modifier.size(42.dp)
-                            )
-                        }
+                                .size(IconButtonDefaults.largeContainerSize()),
+                            icon = {
+                                Icon(
+                                    painter = painterResource(
+                                        when {
+                                            playbackState == STATE_ENDED -> R.drawable.replay
+                                            isPlaying -> R.drawable.pause
+                                            else -> R.drawable.play
+                                        }
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(IconButtonDefaults.largeIconSize)
+                                )
+                            }
+                        )
 
                         Spacer(modifier = Modifier.width(16.dp))
 
-                        FilledTonalIconButton(
+                        filledTonalIconButton(
                             onClick = playerConnection::seekToNext,
                             enabled = canSkipNext,
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = textButtonColor,
-                                contentColor = iconButtonColor
-                            ),
                             modifier = Modifier
-                                .size(width = sideButtonWidth, height = sideButtonHeight)
-                                .clip(RoundedCornerShape(32.dp))
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.skip_next),
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }      
+                                .size(IconButtonDefaults.mediumContainerSize()),
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.skip_next),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(IconButtonDefaults.mediumIconSize)
+                                )
+                            }
+                        )
                     }
                 }
-            } else {            
+            } else {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier =
@@ -1166,7 +1136,25 @@ fun BottomSheetPlayer(
                         Thumbnail(
                             sliderPositionProvider = { sliderPosition },
                             modifier = Modifier.size(thumbnailSize),
-                            isPlayerExpanded = state.isExpanded // Pass player state
+                            isPlayerExpanded = state.isExpanded, // Pass player state,
+                            onClickDismiss = state::collapseSoft,
+                            onClickMore = {
+                                menuState.show {
+                                    PlayerMenu(
+                                        mediaMetadata = mediaMetadata,
+                                        navController = navController,
+                                        playerBottomSheetState = state,
+                                        onShowDetailsDialog = {
+                                            mediaMetadata?.id?.let {
+                                                bottomSheetPageState.show {
+                                                    ShowMediaInfo(it)
+                                                }
+                                            }
+                                        },
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            }
                         )
                     }
                     Column(
@@ -1202,7 +1190,25 @@ fun BottomSheetPlayer(
                         Thumbnail(
                             sliderPositionProvider = { sliderPosition },
                             modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
-                            isPlayerExpanded = state.isExpanded // Pass player state
+                            isPlayerExpanded = state.isExpanded, // Pass player state
+                            onClickDismiss = state::collapseSoft,
+                            onClickMore = {
+                                menuState.show {
+                                    PlayerMenu(
+                                        mediaMetadata = mediaMetadata,
+                                        navController = navController,
+                                        playerBottomSheetState = state,
+                                        onShowDetailsDialog = {
+                                            mediaMetadata?.id?.let {
+                                                bottomSheetPageState.show {
+                                                    ShowMediaInfo(it)
+                                                }
+                                            }
+                                        },
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            }
                         )
                     }
 
@@ -1231,8 +1237,9 @@ fun BottomSheetPlayer(
             iconButtonColor = iconButtonColor,
             onShowLyrics = { lyricsSheetState.expandSoft() },
             pureBlack = pureBlack,
+            backgroundStyle = playerBackground
         )
-        
+
         // Lyrics BottomSheet - separate from Queue
         mediaMetadata?.let { metadata ->
             BottomSheet(
@@ -1261,4 +1268,38 @@ fun BottomSheetPlayer(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun RowScope.filledTonalIconButton(modifier: Modifier = Modifier, onClick: () -> Unit, enabled: Boolean = true, icon: @Composable () -> Unit, colors: IconButtonColors = IconButtonDefaults.filledTonalIconButtonColors()) {
+    val interactionSource by remember { mutableStateOf(MutableInteractionSource()) }
+    val statePress by interactionSource.collectIsPressedAsState()
+    val weight by animateFloatAsState(targetValue = if (statePress) 1.3f else 1f, animationSpec = FloatSpringSpec())
+    FilledTonalIconButton(
+        interactionSource = interactionSource,
+        onClick = onClick,
+        enabled = enabled,
+        colors = colors,
+        modifier = modifier.weight(weight),
+        content = icon
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun RowScope.filledIconToggleButton(modifier: Modifier = Modifier, checked: Boolean, onCheckedChange: (Boolean) -> Unit, enabled: Boolean = true, colors: IconToggleButtonColors = IconButtonDefaults.filledTonalIconToggleButtonColors(), shapes: IconToggleButtonShapes = IconButtonDefaults.toggleableShapes(), icon: @Composable () -> Unit) {
+    val interactionSource by remember { mutableStateOf(MutableInteractionSource()) }
+    val statePress by interactionSource.collectIsPressedAsState()
+    val weight by animateFloatAsState(targetValue = if (statePress) 1.3f else 1f, animationSpec = FloatSpringSpec())
+    FilledTonalIconToggleButton(
+        interactionSource = interactionSource,
+        modifier = modifier.weight(weight),
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        shapes = shapes,
+        enabled = enabled,
+        colors = colors,
+        content = icon
+    )
 }

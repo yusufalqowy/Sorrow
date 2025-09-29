@@ -1,5 +1,6 @@
 package com.metrolist.music.ui.player
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,11 +15,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -29,6 +33,7 @@ import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +72,8 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import com.metrolist.music.LocalPlayerConnection
 import com.metrolist.music.R
 import com.metrolist.music.constants.PlayerBackgroundStyle
@@ -82,12 +89,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun Thumbnail(
     sliderPositionProvider: () -> Long?,
     modifier: Modifier = Modifier,
     isPlayerExpanded: Boolean = true, // Add parameter to control swipe based on player state
+    onClickDismiss: () -> Unit,
+    onClickMore: () -> Unit,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val context = LocalContext.current
@@ -103,22 +112,22 @@ fun Thumbnail(
     val hidePlayerThumbnail by rememberPreference(HidePlayerThumbnailKey, false)
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
-    
+
     // Player background style for consistent theming
     val playerBackground by rememberEnumPreference(
         key = PlayerBackgroundStyleKey,
         defaultValue = PlayerBackgroundStyle.DEFAULT
     )
-    
+
     val textBackgroundColor = when (playerBackground) {
-        PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onBackground
+        PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onSurface
         PlayerBackgroundStyle.BLUR -> Color.White
         PlayerBackgroundStyle.GRADIENT -> Color.White
     }
-    
+
     // Grid state
     val thumbnailLazyGridState = rememberLazyGridState()
-    
+
     // Create a playlist using correct shuffle-aware logic
     val timeline = playerConnection.player.currentTimeline
     val currentIndex = playerConnection.player.currentMediaItemIndex
@@ -239,29 +248,46 @@ fun Thumbnail(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Now Playing header
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.now_playing),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = textBackgroundColor
-                    )
-                    // Show album title or queue title
-                    val playingFrom = queueTitle ?: mediaMetadata?.album?.title
-                    if (!playingFrom.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(16.dp).fillMaxWidth()
+                ){
+                    IconButton(
+                        onClick = onClickDismiss,
+                    ) {
+                        Icon(painter = painterResource(R.drawable.expand_more), contentDescription = null, tint = textBackgroundColor)
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp).weight(1f)
+                    ) {
                         Text(
-                            text = playingFrom,
+                            text = stringResource(R.string.now_playing),
                             style = MaterialTheme.typography.titleMedium,
-                            color = textBackgroundColor.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            modifier = Modifier.basicMarquee()
+                            color = textBackgroundColor
                         )
+                        // Show album title or queue title
+                        val playingFrom = queueTitle ?: mediaMetadata?.album?.title
+                        if (!playingFrom.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = playingFrom,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = textBackgroundColor.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                modifier = Modifier.basicMarquee()
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onClickMore,
+                    ) {
+                        Icon(painter = painterResource(R.drawable.more_horiz), contentDescription = null, tint = textBackgroundColor)
                     }
                 }
-                
+
                 // Thumbnail content
                 BoxWithConstraints(
                     contentAlignment = Alignment.Center,
@@ -279,7 +305,7 @@ fun Thumbnail(
                     ) {
                         items(
                             items = mediaItems,
-                            key = { item -> 
+                            key = { item ->
                                 // Use mediaId with stable fallback to avoid recomposition issues
                                 item.mediaId.ifEmpty { "unknown_${item.hashCode()}" }
                             }
@@ -332,8 +358,9 @@ fun Thumbnail(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(containerMaxWidth - (PlayerHorizontalPadding * 2))
+                                        .sizeIn(minWidth = containerMaxWidth - (PlayerHorizontalPadding * 2), maxWidth = containerMaxWidth - (PlayerHorizontalPadding * 2), maxHeight = containerMaxWidth - (PlayerHorizontalPadding * 2))
                                         .clip(RoundedCornerShape(ThumbnailCornerRadius * 2))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
                                 ) {
                                     if (hidePlayerThumbnail) {
                                         // Show app logo when thumbnail is hidden
@@ -352,7 +379,7 @@ fun Thumbnail(
                                         }
                                     } else {
                                         // Blurred background
-                                        AsyncImage(
+                                        /*AsyncImage(
                                             model = coil3.request.ImageRequest.Builder(LocalContext.current)
                                                 .data(item.mediaMetadata.artworkUri?.toString())
                                                 .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
@@ -367,7 +394,7 @@ fun Thumbnail(
                                                     renderEffect = BlurEffect(radiusX = 75f, radiusY = 75f),
                                                     alpha = 0.5f
                                                 )
-                                        )
+                                        )*/
 
                                         // Main image
                                         AsyncImage(
@@ -378,8 +405,8 @@ fun Thumbnail(
                                                 .networkCachePolicy(coil3.request.CachePolicy.ENABLED)
                                                 .build(),
                                             contentDescription = null,
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier.fillMaxSize()
+                                            contentScale = ContentScale.FillWidth,
+                                            modifier = Modifier.fillMaxWidth()
                                         )
                                     }
                                 }

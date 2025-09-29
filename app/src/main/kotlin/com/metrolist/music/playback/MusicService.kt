@@ -81,6 +81,7 @@ import com.metrolist.music.constants.MediaSessionConstants.CommandToggleStartRad
 import com.metrolist.music.constants.PauseListenHistoryKey
 import com.metrolist.music.constants.PersistentQueueKey
 import com.metrolist.music.constants.PlayerVolumeKey
+import com.metrolist.music.constants.PlayerVolumeMuteKey
 import com.metrolist.music.constants.RepeatModeKey
 import com.metrolist.music.constants.ShowLyricsKey
 import com.metrolist.music.constants.SimilarContent
@@ -143,6 +144,7 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import timber.log.Timber
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.time.LocalDateTime
@@ -204,6 +206,8 @@ class MusicService :
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var isNormalizationEnabled = false
     val playerVolume = MutableStateFlow(dataStore.get(PlayerVolumeKey, 1f).coerceIn(0f, 1f))
+
+    val isVolumeMute = MutableStateFlow(dataStore.get(PlayerVolumeMuteKey, false))
 
     lateinit var sleepTimer: SleepTimer
 
@@ -311,6 +315,12 @@ class MusicService :
                     }
                 }
             }
+        }
+
+        combine(playerVolume, isVolumeMute) { playerVolume, isMute ->
+            isMute to playerVolume
+        }.collectLatest(scope) {
+            player.volume = if (it.first) 0f else it.second
         }
 
         playerVolume.debounce(1000).collect(scope) { volume ->
@@ -467,7 +477,7 @@ class MusicService :
                     delay(1000) // Wait for queue to be loaded
                     player.repeatMode = playerState.repeatMode
                     player.shuffleModeEnabled = playerState.shuffleModeEnabled
-                    player.volume = playerState.volume
+                    player.volume = if (isVolumeMute.value) 0f else playerState.volume
 
                     // Restore position if it's still valid
                     if (playerState.currentMediaItemIndex < player.mediaItemCount) {
@@ -527,6 +537,7 @@ class MusicService :
     }
 
     private fun handleAudioFocusChange(focusChange: Int) {
+        Timber.e("Focus Change $focusChange")
         when (focusChange) {
             AudioManager.AUDIOFOCUS_GAIN -> {
                 hasAudioFocus = true
@@ -536,7 +547,7 @@ class MusicService :
                     wasPlayingBeforeAudioFocusLoss = false
                 }
 
-                player.volume = playerVolume.value
+                player.volume = if (isVolumeMute.value) 0f else playerVolume.value
 
                 lastAudioFocusState = focusChange
             }
@@ -572,7 +583,7 @@ class MusicService :
                 wasPlayingBeforeAudioFocusLoss = player.isPlaying
 
                 if (player.isPlaying) {
-                    player.volume = (playerVolume.value * 0.2f) // خفض إلى 20%
+                    player.volume = if (isVolumeMute.value) 0f else (playerVolume.value * 0.2f) // خفض إلى 20%
                 }
 
                 lastAudioFocusState = focusChange
@@ -587,7 +598,7 @@ class MusicService :
                     wasPlayingBeforeAudioFocusLoss = false
                 }
 
-                player.volume = playerVolume.value
+                player.volume = if (isVolumeMute.value) 0f else playerVolume.value
 
                 lastAudioFocusState = focusChange
             }
@@ -595,7 +606,7 @@ class MusicService :
             AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK -> {
                 hasAudioFocus = true
 
-                player.volume = playerVolume.value
+                player.volume = if (isVolumeMute.value) 0f else playerVolume.value
 
                 lastAudioFocusState = focusChange
             }
@@ -660,6 +671,13 @@ class MusicService :
             listOf(
                 CommandButton
                     .Builder()
+                    .setDisplayName(getString(if (player.shuffleModeEnabled) R.string.action_shuffle_off else R.string.action_shuffle_on))
+                    .setIconResId(if (player.shuffleModeEnabled) R.drawable.shuffle else R.drawable.shuffle_off)
+                    .setSessionCommand(CommandToggleShuffle)
+                    .setEnabled(currentSong != null)
+                    .build(),
+                CommandButton
+                    .Builder()
                     .setDisplayName(
                         getString(
                             if (currentSong.value?.song?.liked ==
@@ -673,39 +691,7 @@ class MusicService :
                     )
                     .setIconResId(if (currentSong.value?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border)
                     .setSessionCommand(CommandToggleLike)
-                    .setEnabled(currentSong.value != null)
-                    .build(),
-                CommandButton
-                    .Builder()
-                    .setDisplayName(
-                        getString(
-                            when (player.repeatMode) {
-                                REPEAT_MODE_OFF -> R.string.repeat_mode_off
-                                REPEAT_MODE_ONE -> R.string.repeat_mode_one
-                                REPEAT_MODE_ALL -> R.string.repeat_mode_all
-                                else -> throw IllegalStateException()
-                            },
-                        ),
-                    ).setIconResId(
-                        when (player.repeatMode) {
-                            REPEAT_MODE_OFF -> R.drawable.repeat
-                            REPEAT_MODE_ONE -> R.drawable.repeat_one_on
-                            REPEAT_MODE_ALL -> R.drawable.repeat_on
-                            else -> throw IllegalStateException()
-                        },
-                    ).setSessionCommand(CommandToggleRepeatMode)
-                    .build(),
-                CommandButton
-                    .Builder()
-                    .setDisplayName(getString(if (player.shuffleModeEnabled) R.string.action_shuffle_off else R.string.action_shuffle_on))
-                    .setIconResId(if (player.shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle)
-                    .setSessionCommand(CommandToggleShuffle)
-                    .build(),
-                CommandButton.Builder()
-                    .setDisplayName(getString(R.string.start_radio))
-                    .setIconResId(R.drawable.radio)
-                    .setSessionCommand(CommandToggleStartRadio)
-                    .setEnabled(currentSong.value != null)
+                    .setEnabled(currentSong != null)
                     .build(),
             ),
         )
@@ -1378,7 +1364,7 @@ class MusicService :
             playWhenReady = player.playWhenReady,
             repeatMode = player.repeatMode,
             shuffleModeEnabled = player.shuffleModeEnabled,
-            volume = player.volume,
+            volume = playerVolume.value,
             currentPosition = player.currentPosition,
             currentMediaItemIndex = player.currentMediaItemIndex,
             playbackState = player.playbackState

@@ -297,6 +297,7 @@ val LyricsRomanizeCyrillicByLineKey = booleanPreferencesKey("lyricsRomanizeCyril
 val TranslateLyricsKey = booleanPreferencesKey("translateLyrics")
 
 val PlayerVolumeKey = floatPreferencesKey("playerVolume")
+val PlayerVolumeMuteKey = booleanPreferencesKey("playerVolumeMute")
 val RepeatModeKey = intPreferencesKey("repeatMode")
 
 val SearchSourceKey = stringPreferencesKey("searchSource")

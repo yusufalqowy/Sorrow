@@ -175,7 +175,7 @@ fun YouTubePlaylistMenu(
                 ) {
                     Icon(
                         painter = painterResource(if (dbPlaylist?.playlist?.bookmarkedAt != null) R.drawable.favorite else R.drawable.favorite_border),
-                        tint = if (dbPlaylist?.playlist?.bookmarkedAt != null) MaterialTheme.colorScheme.error else LocalContentColor.current,
+                        tint = LocalContentColor.current,
                         contentDescription = null
                     )
                 }

@@ -985,13 +985,13 @@ fun LocalPlaylistHeader(
             val destFile = java.io.File(context.cacheDir, "playlist_cover_crop_${System.currentTimeMillis()}.jpg")
             val destUri = FileProvider.getUriForFile(context, "${context.packageName}.FileProvider", destFile)
             pendingCropDestUri = destUri
-    
+
             val options = UCrop.Options().apply {
                 setCompressionFormat(Bitmap.CompressFormat.JPEG)
                 setCompressionQuality(90)
                 setHideBottomControls(true)
                 setToolbarTitle(context.getString(R.string.edit_playlist_cover))
-                
+
                 setStatusBarLight(!darkTheme)
 
                 setToolbarColor(cropColor.surface.toArgb())
@@ -1166,7 +1166,7 @@ fun LocalPlaylistHeader(
                                                                 }
                                                             }
                                                         }
-                                                        isCustomThumbnail = false 
+                                                        isCustomThumbnail = false
                                                     },
                                                     onDismiss = menuState::dismiss
                                                 )
@@ -1240,7 +1240,7 @@ fun LocalPlaylistHeader(
                                                                 }
                                                             }
                                                         }
-                                                        isCustomThumbnail = false 
+                                                        isCustomThumbnail = false
                                                     },
                                                     onDismiss = menuState::dismiss
                                                 )
@@ -1256,7 +1256,7 @@ fun LocalPlaylistHeader(
                     }
                 }
             }
-            
+
             Column(
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -1322,7 +1322,7 @@ fun LocalPlaylistHeader(
                             Icon(
                                 painter = painterResource(if (liked) R.drawable.favorite else R.drawable.favorite_border),
                                 contentDescription = null,
-                                tint = if (liked) MaterialTheme.colorScheme.error else LocalContentColor.current,
+                                tint = LocalContentColor.current,
                                 modifier = Modifier.size(24.dp)
                             )
                         }

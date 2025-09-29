@@ -136,7 +136,7 @@ fun AppearanceSettings(
 
     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(
         SliderStyleKey,
-        defaultValue = SliderStyle.DEFAULT
+        defaultValue = SliderStyle.SQUIGGLY
     )
     val (swipeThumbnail, onSwipeThumbnailChange) = rememberPreference(
         SwipeThumbnailKey,
@@ -452,38 +452,38 @@ fun AppearanceSettings(
 
         AnimatedVisibility(swipeThumbnail) {
             var showSensitivityDialog by rememberSaveable { mutableStateOf(false) }
-            
+
             if (showSensitivityDialog) {
                 var tempSensitivity by remember { mutableFloatStateOf(swipeSensitivity) }
-                
+
                 DefaultDialog(
-                    onDismiss = { 
+                    onDismiss = {
                         tempSensitivity = swipeSensitivity
-                        showSensitivityDialog = false 
+                        showSensitivityDialog = false
                     },
                     buttons = {
                         TextButton(
-                            onClick = { 
+                            onClick = {
                                 tempSensitivity = 0.73f
                             }
                         ) {
                             Text(stringResource(R.string.reset))
                         }
-                        
+
                         Spacer(modifier = Modifier.weight(1f))
-                        
+
                         TextButton(
-                            onClick = { 
+                            onClick = {
                                 tempSensitivity = swipeSensitivity
-                                showSensitivityDialog = false 
+                                showSensitivityDialog = false
                             }
                         ) {
                             Text(stringResource(android.R.string.cancel))
                         }
                         TextButton(
-                            onClick = { 
+                            onClick = {
                                 onSwipeSensitivityChange(tempSensitivity)
-                                showSensitivityDialog = false 
+                                showSensitivityDialog = false
                             }
                         ) {
                             Text(stringResource(android.R.string.ok))
@@ -499,13 +499,13 @@ fun AppearanceSettings(
                             style = MaterialTheme.typography.headlineSmall,
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
-    
+
                         Text(
                             text = stringResource(R.string.sensitivity_percentage, (tempSensitivity * 100).roundToInt()),
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
-    
+
                         Slider(
                             value = tempSensitivity,
                             onValueChange = { tempSensitivity = it },
@@ -515,7 +515,7 @@ fun AppearanceSettings(
                     }
                 }
             }
-            
+
             PreferenceEntry(
                 title = { Text(stringResource(R.string.swipe_sensitivity)) },
                 description = stringResource(R.string.sensitivity_percentage, (swipeSensitivity * 100).roundToInt()),

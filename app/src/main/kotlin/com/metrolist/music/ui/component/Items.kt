@@ -370,7 +370,6 @@ fun SongGridItem(
             overflow = TextOverflow.Ellipsis,
         )
     },
-    badges = badges,
     thumbnailContent = {
         ItemThumbnail(
             thumbnailUrl = song.song.thumbnailUrl,
@@ -398,7 +397,6 @@ fun ArtistListItem(
             Icon(
                 painter = painterResource(R.drawable.favorite),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier
                     .size(18.dp)
                     .padding(end = 2.dp),
@@ -441,7 +439,6 @@ fun ArtistGridItem(
 ) = GridItem(
     title = artist.artist.name,
     subtitle = pluralStringResource(R.plurals.n_song, artist.songCount, artist.songCount),
-    badges = badges,
     thumbnailContent = {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
@@ -465,7 +462,7 @@ fun ArtistGridItem(
 fun AlbumListItem(
     album: Album,
     modifier: Modifier = Modifier,
-    showLikedIcon: Boolean = true,
+    showLikedIcon: Boolean = false,
     badges: @Composable RowScope.() -> Unit = {
         val database = LocalDatabase.current
         val downloadUtil = LocalDownloadUtil.current
@@ -584,7 +581,6 @@ fun AlbumGridItem(
             overflow = TextOverflow.Ellipsis
         )
     },
-    badges = badges,
     thumbnailContent = {
         val database = LocalDatabase.current
         val playerConnection = LocalPlayerConnection.current ?: return@GridItem
@@ -709,7 +705,6 @@ fun PlaylistGridItem(
             overflow = TextOverflow.Ellipsis
         )
     },
-    badges = badges,
     thumbnailContent = {
         val width = maxWidth
         PlaylistThumbnail(
@@ -900,7 +895,6 @@ fun YouTubeGridItem(
             )
         }
     },
-    badges = badges,
     thumbnailContent = {
         val database = LocalDatabase.current
         val playerConnection = LocalPlayerConnection.current ?: return@GridItem
@@ -957,7 +951,6 @@ fun LocalSongsGrid(
 ) = GridItem(
     title = title,
     subtitle = subtitle,
-    badges = badges,
     thumbnailContent = {
         LocalThumbnail(
             thumbnailUrl = thumbnailUrl,
@@ -986,7 +979,6 @@ fun LocalArtistsGrid(
 ) = GridItem(
     title = title,
     subtitle = subtitle,
-    badges = badges,
     thumbnailContent = {
         LocalThumbnail(
             thumbnailUrl = thumbnailUrl,
@@ -1015,7 +1007,6 @@ fun LocalAlbumsGrid(
 ) = GridItem(
     title = title,
     subtitle = subtitle,
-    badges = badges,
     thumbnailContent = {
         LocalThumbnail(
             thumbnailUrl = thumbnailUrl,
@@ -1477,7 +1468,6 @@ private object Icon {
         Icon(
             painter = painterResource(R.drawable.favorite),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
             modifier = Modifier
                 .size(18.dp)
                 .padding(end = 2.dp)

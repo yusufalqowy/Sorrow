@@ -310,7 +310,7 @@ fun SongMenu(
             ) {
                 Icon(
                     painter = painterResource(if (song.song.liked) R.drawable.favorite else R.drawable.favorite_border),
-                    tint = if (song.song.liked) MaterialTheme.colorScheme.error else LocalContentColor.current,
+                    tint = LocalContentColor.current,
                     contentDescription = null,
                 )
             }
@@ -455,7 +455,7 @@ fun SongMenu(
                     val isInLibrary = currentSong.inLibrary != null
                     val token = if (isInLibrary) currentSong.libraryRemoveToken else currentSong.libraryAddToken
 
-                    token?.let { 
+                    token?.let {
                         coroutineScope.launch {
                             YouTube.feedback(listOf(it))
                         }

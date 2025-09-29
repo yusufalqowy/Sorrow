@@ -254,14 +254,7 @@ fun AlbumScreen(
                                             },
                                         ),
                                         contentDescription = null,
-                                        tint =
-                                        if (albumWithSongs.album.bookmarkedAt !=
-                                            null
-                                        ) {
-                                            MaterialTheme.colorScheme.error
-                                        } else {
-                                            LocalContentColor.current
-                                        },
+                                        tint = LocalContentColor.current,
                                     )
                                 }
 

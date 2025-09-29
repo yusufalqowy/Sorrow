@@ -61,6 +61,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.pluralStringResource
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadRequest
@@ -76,16 +84,21 @@ import com.metrolist.music.constants.ListItemHeight
 import com.metrolist.music.models.MediaMetadata
 import com.metrolist.music.playback.ExoDownloadService
 import com.metrolist.music.playback.queues.YouTubeQueue
+import com.metrolist.music.ui.component.ActionPromptDialog
 import com.metrolist.music.ui.component.BigSeekBar
 import com.metrolist.music.ui.component.BottomSheetState
 import com.metrolist.music.ui.component.ListDialog
 import com.metrolist.music.ui.component.NewAction
 import com.metrolist.music.ui.component.NewActionGrid
+import com.metrolist.music.utils.makeTimeString
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.log2
 import kotlin.math.pow
 import kotlin.math.round
+import kotlin.math.roundToInt
 
 @Composable
 fun PlayerMenu(
@@ -118,6 +131,30 @@ fun PlayerMenu(
         mutableStateOf(false)
     }
 
+    val isVolumeMute by playerConnection.service.isVolumeMute.collectAsState()
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var sleepTimerValue by remember { mutableFloatStateOf(30f) }
+    val sleepTimerEnabled = remember(
+        playerConnection.service.sleepTimer.triggerTime,
+        playerConnection.service.sleepTimer.pauseWhenSongEnd
+    ) {
+        playerConnection.service.sleepTimer.isActive
+    }
+    var sleepTimerTimeLeft by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(sleepTimerEnabled) {
+        if (sleepTimerEnabled) {
+            while (isActive) {
+                sleepTimerTimeLeft = if (playerConnection.service.sleepTimer.pauseWhenSongEnd) {
+                    playerConnection.player.duration - playerConnection.player.currentPosition
+                } else {
+                    playerConnection.service.sleepTimer.triggerTime - System.currentTimeMillis()
+                }
+                delay(1000L)
+            }
+        }
+    }
+
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
         onGetSong = { playlist ->
@@ -146,16 +183,16 @@ fun PlayerMenu(
                 Box(
                     contentAlignment = Alignment.CenterStart,
                     modifier =
-                    Modifier
-                        .fillParentMaxWidth()
-                        .height(ListItemHeight)
-                        .clickable {
-                            navController.navigate("artist/${artist.id}")
-                            showSelectArtistDialog = false
-                            playerBottomSheetState.collapseSoft()
-                            onDismiss()
-                        }
-                        .padding(horizontal = 24.dp),
+                        Modifier
+                            .fillParentMaxWidth()
+                            .height(ListItemHeight)
+                            .clickable {
+                                navController.navigate("artist/${artist.id}")
+                                showSelectArtistDialog = false
+                                playerBottomSheetState.collapseSoft()
+                                onDismiss()
+                            }
+                            .padding(horizontal = 24.dp),
                 ) {
                     Text(
                         text = artist.name,
@@ -184,23 +221,30 @@ fun PlayerMenu(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically,
             modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(top = 24.dp, bottom = 6.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 24.dp, bottom = 6.dp),
         ) {
-            Icon(
-                painter = painterResource(R.drawable.volume_up),
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-            )
+            IconButton(
+                onClick = {
+                    playerConnection.service.isVolumeMute.value = !playerConnection.service.isVolumeMute.value
+                }
+            ) {
+                Icon(
+                    painter = painterResource(if (isVolumeMute) R.drawable.volume_off else R.drawable.volume_up),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
 
             BigSeekBar(
+                enable = !isVolumeMute,
                 progressProvider = playerVolume::value,
                 onProgressChange = { playerConnection.service.playerVolume.value = it },
                 modifier = Modifier
                     .weight(1f)
-                    .height(36.dp), // Reduced height from default (assumed ~48.dp) to 36.dp
+                    .height(24.dp), // Reduced height from default (assumed ~48.dp) to 36.dp
             )
         }
     }
@@ -277,6 +321,71 @@ fun PlayerMenu(
             )
         }
 
+        item {
+            ListItem(
+                headlineContent = { Text(text = stringResource(R.string.share)) },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.share),
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable {
+                    val intent =
+                        Intent().apply {
+                            action = Intent.ACTION_SEND
+                            type = "text/plain"
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "https://music.youtube.com/watch?v=${mediaMetadata.id}"
+                            )
+                        }
+                    context.startActivity(Intent.createChooser(intent, null))
+                }
+            )
+        }
+
+        item {
+            val supportingContent: @Composable (() -> Unit)? = if (sleepTimerEnabled){
+                {
+                    AnimatedContent(
+                        label = "sleepTimer",
+                        targetState = sleepTimerEnabled,
+                    ) { enabled ->
+                        if (enabled) {
+                            Text(
+                                text = makeTimeString(sleepTimerTimeLeft),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.basicMarquee()
+                            )
+                        }
+                    }
+                }
+            }else{
+                null
+            }
+
+            ListItem(
+                headlineContent = { Text(text = stringResource(R.string.sleep_timer)) },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.bedtime),
+                        contentDescription = null,
+                    )
+                },
+                trailingContent = supportingContent,
+                modifier = Modifier.clickable {
+                    if (sleepTimerEnabled) {
+                        playerConnection.service.sleepTimer.clear()
+                    } else {
+                        showSleepTimerDialog = true
+                    }
+                }
+            )
+        }
+
         if (artists.isNotEmpty()) {
             item {
                 ListItem(
@@ -343,6 +452,7 @@ fun PlayerMenu(
                         }
                     )
                 }
+
                 Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> {
                     ListItem(
                         headlineContent = { Text(text = stringResource(R.string.downloading)) },
@@ -449,6 +559,68 @@ fun PlayerMenu(
                 )
             }
         }
+    }
+
+    if (showSleepTimerDialog) {
+        ActionPromptDialog(
+            titleBar = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.sleep_timer),
+                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
+                }
+            },
+            onDismiss = { showSleepTimerDialog = false },
+            onConfirm = {
+                showSleepTimerDialog = false
+                playerConnection.service.sleepTimer.start(sleepTimerValue.roundToInt())
+            },
+            onCancel = {
+                showSleepTimerDialog = false
+            },
+            onReset = {
+                sleepTimerValue = 30f // Default value
+            },
+            content = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.minute,
+                            sleepTimerValue.roundToInt(),
+                            sleepTimerValue.roundToInt()
+                        ),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Slider(
+                        value = sleepTimerValue,
+                        onValueChange = { sleepTimerValue = it },
+                        valueRange = 5f..120f,
+                        steps = (120 - 5) / 5 - 1,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            showSleepTimerDialog = false
+                            playerConnection.service.sleepTimer.start(-1)
+                        }
+                    ) {
+                        Text(stringResource(R.string.end_of_song))
+                    }
+                }
+            }
+        )
     }
 }
 
