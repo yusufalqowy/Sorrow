@@ -14,6 +14,7 @@ import android.media.AudioManager
 import android.media.ThumbnailUtils
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.LoudnessEnhancer
+import android.media.session.PlaybackState
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Binder
@@ -144,6 +145,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -347,7 +349,6 @@ class MusicService :
 
         currentSong.debounce(1000).collect(scope) { song ->
             updateNotification()
-            requestWidgetFullUpdate(true)
             if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
                 discordRpc?.updateSong(song, player.currentPosition, player.playbackParameters.speed, dataStore.get(DiscordUseDetailsKey, false))
             } else {
@@ -1040,6 +1041,8 @@ class MusicService :
         mediaItem: MediaItem?,
         reason: Int,
     ) {
+        requestWidgetFullUpdate(true)
+
         lastPlaybackSpeed = -1.0f // force update song
 
         discordUpdateJob?.cancel()
@@ -1069,7 +1072,6 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
-
         // Save state when playback state changes
         if (dataStore.get(PersistentQueueKey, true)) {
             saveQueueToDisk()
@@ -1080,7 +1082,6 @@ class MusicService :
         player: Player,
         events: Player.Events,
     ) {
-        requestWidgetFullUpdate()
         if (events.containsAny(
                 Player.EVENT_PLAYBACK_STATE_CHANGED,
                 Player.EVENT_PLAY_WHEN_READY_CHANGED
@@ -1483,6 +1484,11 @@ class MusicService :
         requestWidgetFullUpdate()
     }
 
+    override fun onIsLoadingChanged(isLoading: Boolean) {
+        super.onIsLoadingChanged(isLoading)
+        requestWidgetFullUpdate()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.action?.let { action ->
             val player = mediaSession.player
@@ -1491,10 +1497,7 @@ class MusicService :
             when (action) {
                 PlayerActions.PLAY_PAUSE -> {
                     if (hasItemToPlay) {
-                        player.prepare()
                         player.playWhenReady = !player.playWhenReady
-                    }else{
-                        database.allSongs()
                     }
                 }
 
@@ -1555,14 +1558,14 @@ class MusicService :
             if (squareGlanceIds.isNotEmpty()) {
                 squareGlanceIds.forEach { id ->
                     updateAppWidgetState(applicationContext, WidgetMetadataState, id) { widgetMetadata }
+                    PlayerWidgetSquare().update(applicationContext, id)
                 }
-                PlayerWidgetSquare().update(applicationContext, squareGlanceIds.first())
             }
             if (circleGlanceIds.isNotEmpty()) {
                 circleGlanceIds.forEach { id ->
                     updateAppWidgetState(applicationContext, WidgetMetadataState, id) { widgetMetadata }
+                    PlayerWidgetCircle().update(applicationContext, id)
                 }
-                PlayerWidgetCircle().update(applicationContext, circleGlanceIds.first())
             }
         } catch (e: Exception) {
             Timber.e(e)

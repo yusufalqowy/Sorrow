@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.session.PlaybackState
 import android.util.LruCache
 import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Composable
@@ -144,17 +145,46 @@ class PlayerWidgetSquare : GlanceAppWidget() {
 
         Box(
             modifier = modifier
-                .background(GlanceTheme.colors.primary)
+                .background(GlanceTheme.colors.surface)
                 .clickable(rippleOverride = -1, onClick = onClick)
                 .cornerRadius(bgCornerRadius),
             contentAlignment = Alignment.Center
         ) {
             if (imageProvider != null) {
                 Image(modifier = GlanceModifier.fillMaxSize(), provider = imageProvider, contentDescription = null, contentScale = ContentScale.Crop)
+            }else{
+                val appIconSize = LocalSize.current.width.div(4).minus(8.dp)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = GlanceModifier
+                        .background(GlanceTheme.colors.surface)
+                        .cornerRadius(bgCornerRadius).fillMaxSize(),
+                ) {
+                    Image(
+                        modifier = GlanceModifier.size(appIconSize),
+                        provider = ImageProvider(R.drawable.music_note),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurface),
+                    )
+                }
             }
 
             Column(modifier = GlanceModifier.fillMaxSize(), horizontalAlignment = Alignment.End) {
-                Box(modifier = GlanceModifier.padding(top = 12.dp, end = 12.dp)) { Image(modifier = GlanceModifier.background(GlanceTheme.colors.primary).size(30.dp).padding(4.dp).cornerRadius(30.dp).clickable(onClick = actionStartActivity<MainActivity>()), provider = ImageProvider(R.drawable.small_icon), contentDescription = null, colorFilter = ColorFilter.tint(GlanceTheme.colors.onPrimary)) }
+                Box(
+                    modifier = GlanceModifier
+                        .padding(top = 12.dp, end = 12.dp)
+                ) {
+                    Image(
+                        modifier = GlanceModifier
+                            .background(GlanceTheme.colors.primary)
+                            .size(32.dp).padding(8.dp)
+                            .cornerRadius(32.dp)
+                            .clickable(onClick = actionStartActivity<MainActivity>()),
+                        provider = ImageProvider(R.drawable.small_icon),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(GlanceTheme.colors.onPrimary),
+                    )
+                }
                 Spacer(modifier = GlanceModifier.defaultWeight())
                 if (!metadata.title.isNullOrBlank() || !metadata.artists.isNullOrBlank()) {
                     Column(
@@ -183,9 +213,9 @@ class PlayerWidgetSquare : GlanceAppWidget() {
                         onClick = actionRunCallback<PlayerControlActionCallback>(actionParametersOf(PlayerActions.key to PlayerActions.PREVIOUS))
                     )
                     Spacer(modifier = GlanceModifier.width(12.dp))
-                    if (metadata.isLoading && !metadata.isPlaying){
+                    if (/*metadata.isLoading && !metadata.isPlaying*/ false) {
                         CircularProgressIndicator(modifier = GlanceModifier.size(buttonSize), color = GlanceTheme.colors.primary)
-                    }else{
+                    } else {
                         ButtonGlance(
                             iconResource = if (metadata.isPlaying) R.drawable.pause else R.drawable.play,
                             cornerRadius = if (metadata.isPlaying) 12.dp else buttonSize,

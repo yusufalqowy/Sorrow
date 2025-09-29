@@ -165,18 +165,41 @@ class PlayerWidgetCircle : GlanceAppWidget() {
             modifier = modifier.clickable(rippleOverride = -1, onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
+            val appIconSize = LocalSize.current.width.div(4).minus(8.dp)
             if (imageProvider != null) {
                 Image(modifier = GlanceModifier.cornerRadius(bgCornerRadius).fillMaxSize(), provider = imageProvider, contentDescription = null, contentScale = ContentScale.Crop)
+            } else {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = GlanceModifier
+                        .background(GlanceTheme.colors.surface)
+                        .cornerRadius(bgCornerRadius).fillMaxSize(),
+                ) {
+                    Image(
+                        modifier = GlanceModifier.size(appIconSize),
+                        provider = ImageProvider(R.drawable.music_note),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurface),
+                    )
+                }
             }
             Column(
                 modifier = GlanceModifier.fillMaxSize()
-            ){
-                val appIconSize = LocalSize.current.width.div(4).minus(8.dp)
+            ) {
                 Row(
                     modifier = GlanceModifier.fillMaxWidth().padding(top = appIconSize.div(4), end = appIconSize.div(4)),
                     horizontalAlignment = Alignment.End
                 ) {
-                    Image(modifier = GlanceModifier.background(GlanceTheme.colors.primary).size(appIconSize).padding(8.dp).cornerRadius(appIconSize).clickable(onClick = actionStartActivity<MainActivity>()), provider = ImageProvider(R.drawable.small_icon), contentDescription = null, colorFilter = ColorFilter.tint(GlanceTheme.colors.onPrimary))
+                    Image(
+                        modifier = GlanceModifier
+                            .background(GlanceTheme.colors.primary)
+                            .size(appIconSize).padding(8.dp)
+                            .cornerRadius(appIconSize)
+                            .clickable(onClick = actionStartActivity<MainActivity>()),
+                        provider = ImageProvider(R.drawable.small_icon),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(GlanceTheme.colors.onPrimary),
+                    )
                 }
 
                 Row(
@@ -184,14 +207,14 @@ class PlayerWidgetCircle : GlanceAppWidget() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (metadata.isLoading && !metadata.isPlaying){
+                    /*if (metadata.isLoading && !metadata.isPlaying) {
                         CircularProgressIndicator(modifier = GlanceModifier.size(appIconSize), color = GlanceTheme.colors.primary)
-                    }
+                    }*/
                 }
                 Row(
                     modifier = GlanceModifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.Start
-                ){
+                ) {
                     val size = LocalSize.current.width.div(2).minus(32.dp)
                     ButtonGlance(
                         iconResource = if (metadata.isPlaying) R.drawable.pause else R.drawable.play,
