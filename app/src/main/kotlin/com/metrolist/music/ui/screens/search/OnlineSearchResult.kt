@@ -34,7 +34,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.metrolist.innertube.YouTube.SearchFilter.Companion.FILTER_ALBUM
 import com.metrolist.innertube.YouTube.SearchFilter.Companion.FILTER_ARTIST
@@ -202,7 +202,7 @@ fun OnlineSearchResult(
 
                 items(
                     items = summary.items,
-                    key = { "${summary.title}/${it.id}/${summary.items.indexOf(it)}" },
+                    key = { "${summary.title}/${it.id}" },
                     itemContent = ytItemContent,
                 )
             }
@@ -218,7 +218,7 @@ fun OnlineSearchResult(
         } else {
             items(
                 items = itemsPage?.items.orEmpty().distinctBy { it.id },
-                key = { "filtered_${it.id}" },
+                key = { it.id },
                 itemContent = ytItemContent,
             )
 
