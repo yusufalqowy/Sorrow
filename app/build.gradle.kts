@@ -18,12 +18,15 @@ android {
         applicationId = "com.metrolist.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 127
-        versionName = "12.6.0"
+        versionCode = 128
+        versionName = "12.7.0"
 
-        multiDexEnabled = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+
+        // LastFM API keys from GitHub Secrets
+        buildConfigField("String", "LASTFM_API_KEY", "\"${System.getenv("LASTFM_API_KEY") ?: ""}\"")
+        buildConfigField("String", "LASTFM_SECRET", "\"${System.getenv("LASTFM_SECRET") ?: ""}\"")
     }
 
     flavorDimensions += "abi"
@@ -82,6 +85,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            isCrunchPngs = false
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -99,14 +104,13 @@ android {
     }
 
     compileOptions {
-        isCoreLibraryDesugaringEnabled = false
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlin {
         jvmToolchain(21)
-
         compilerOptions {
             freeCompilerArgs.add("-Xannotation-default-target=param-property")
             jvmTarget.set(JvmTarget.JVM_21)
@@ -155,24 +159,12 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-kapt {
-    correctErrorTypes = true
-    useBuildCache = true
-    arguments {
-        arg("dagger.fastInit", "enabled")
-        arg("dagger.formatGeneratedSource", "disabled")
-        // dagger.gradle.incremental is deprecated in newer versions
-    }
-}
-
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {
         freeCompilerArgs.addAll(
-            "-opt-in=kotlin.RequiresOptIn",
-            "-Xcontext-receivers"
+            "-opt-in=kotlin.RequiresOptIn"
         )
-        // Suppress warnings
-        suppressWarnings.set(true)
+        suppressWarnings.set(false)
     }
 }
 
@@ -182,7 +174,6 @@ dependencies {
     implementation(libs.concurrent.futures)
 
     implementation(libs.activity)
-    implementation(libs.navigation)
     implementation(libs.hilt.navigation)
     implementation(libs.datastore)
 
@@ -206,7 +197,6 @@ dependencies {
     implementation(libs.coil)
     implementation(libs.coil.network.okhttp)
 
-    // In-app image cropper (UCrop)
     implementation(libs.ucrop)
 
     implementation(libs.shimmer)
@@ -225,19 +215,18 @@ dependencies {
 
     implementation(libs.hilt)
     implementation(libs.jsoup)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
 
     implementation(project(":innertube"))
     implementation(project(":kugou"))
     implementation(project(":lrclib"))
     implementation(project(":kizzy"))
+    implementation(project(":lastfm"))
 
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.serialization.json)
 
     coreLibraryDesugaring(libs.desugaring)
-
-    implementation(libs.multidex)
 
     implementation(libs.timber)
 

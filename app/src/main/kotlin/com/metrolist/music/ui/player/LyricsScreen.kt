@@ -1,14 +1,10 @@
 package com.metrolist.music.ui.player
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,11 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.ripple
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,7 +37,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,20 +46,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.zIndex
 import android.app.Activity
 import android.content.res.Configuration
@@ -76,7 +64,6 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.Player.STATE_READY
 import androidx.palette.graphics.Palette
-import androidx.core.graphics.drawable.toBitmap
 import coil3.compose.AsyncImage
 import coil3.imageLoader
 import coil3.request.ImageRequest
@@ -90,11 +77,9 @@ import com.metrolist.music.constants.PlayerBackgroundStyle
 import com.metrolist.music.constants.PlayerBackgroundStyleKey
 import com.metrolist.music.constants.SliderStyle
 import com.metrolist.music.constants.SliderStyleKey
-import com.metrolist.music.constants.ThumbnailCornerRadius
 import com.metrolist.music.db.entities.LyricsEntity
 import com.metrolist.music.extensions.togglePlayPause
 import com.metrolist.music.extensions.toggleRepeatMode
-import com.metrolist.music.lyrics.LyricsHelper
 import com.metrolist.music.models.MediaMetadata
 import com.metrolist.music.ui.component.Lyrics
 import com.metrolist.music.ui.component.LocalMenuState
@@ -112,10 +97,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.runCatching
 import com.metrolist.music.utils.makeTimeString
-import androidx.compose.ui.text.style.TextAlign
-import com.metrolist.music.db.entities.SongEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,17 +105,15 @@ fun LyricsScreen(
     mediaMetadata: MediaMetadata,
     onBackClick: () -> Unit,
     navController: NavController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    backgroundAlpha: Float = 1f // Add this parameter
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    
-    // Keep the screen on when entering the screen
+
     DisposableEffect(Unit) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
         onDispose {
-            // Remove the feature when exiting the screen
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
@@ -148,36 +128,26 @@ fun LyricsScreen(
     val repeatMode by playerConnection.repeatMode.collectAsState()
     val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
     val playerVolume = playerConnection.service.playerVolume.collectAsState()
-    
-    // slider style preference
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
     val currentLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
 
-    // Auto-fetch lyrics when no lyrics found (same logic as refetch)
     LaunchedEffect(mediaMetadata.id, currentLyrics) {
         if (currentLyrics == null) {
-            // Small delay to ensure database state is stable
             delay(500)
-            
             coroutineScope.launch(Dispatchers.IO) {
                 try {
-                    // Get LyricsHelper from Hilt
                     val entryPoint = EntryPointAccessors.fromApplication(
                         context.applicationContext,
                         com.metrolist.music.di.LyricsHelperEntryPoint::class.java
                     )
                     val lyricsHelper = entryPoint.lyricsHelper()
-                    
-                    // Fetch lyrics automatically
                     val lyrics = lyricsHelper.getLyrics(mediaMetadata)
-                    
-                    // Save to database
                     database.query {
                         upsert(LyricsEntity(mediaMetadata.id, lyrics))
                     }
                 } catch (e: Exception) {
-                    // Handle error silently - user can manually refetch if needed
+                    // Handle error
                 }
             }
         }
@@ -188,13 +158,11 @@ fun LyricsScreen(
     var sliderPosition by remember { mutableStateOf<Long?>(null) }
 
     val playerBackground by rememberEnumPreference(PlayerBackgroundStyleKey, PlayerBackgroundStyle.DEFAULT)
-
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val useDarkTheme = isSystemInDarkTheme
 
     var gradientColors by remember { mutableStateOf<List<Color>>(emptyList()) }
     val gradientColorsCache = remember { mutableMapOf<String, List<Color>>() }
-
     val defaultGradientColors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant)
     val fallbackColor = MaterialTheme.colorScheme.surface.toArgb()
 
@@ -215,7 +183,7 @@ fun LyricsScreen(
                     val result = runCatching {
                         context.imageLoader.execute(request).image
                     }.getOrNull()
-                    
+
                     if (result != null) {
                         val bitmap = result.toBitmap()
                         val palette = withContext(Dispatchers.Default) {
@@ -224,12 +192,10 @@ fun LyricsScreen(
                                 .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
                                 .generate()
                         }
-                        
                         val extractedColors = PlayerColorExtractor.extractGradientColors(
                             palette = palette,
                             fallbackColor = fallbackColor
                         )
-                        
                         gradientColorsCache[mediaMetadata.id] = extractedColors
                         gradientColors = extractedColors
                     } else {
@@ -246,14 +212,12 @@ fun LyricsScreen(
 
     val textBackgroundColor = when (playerBackground) {
         PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onBackground
-        PlayerBackgroundStyle.BLUR -> Color.White
-        PlayerBackgroundStyle.GRADIENT -> Color.White
+        PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT -> Color.White
     }
 
-    val icBackgroundColor = when (playerBackground) {
+    val iconButtonColor = when (playerBackground) {
         PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.surface
-        PlayerBackgroundStyle.BLUR -> Color.Black
-        PlayerBackgroundStyle.GRADIENT -> Color.Black
+        PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT -> Color.Black
     }
 
     LaunchedEffect(playbackState) {
@@ -269,93 +233,89 @@ fun LyricsScreen(
     BackHandler(onBack = onBackClick)
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Background Layer
-        if (playerBackground == PlayerBackgroundStyle.BLUR) {
-            Crossfade(
-                targetState = mediaMetadata?.thumbnailUrl,
-                animationSpec = tween(600)
-            ) { thumbnailUrl ->
-                if (thumbnailUrl != null) {
-                    AsyncImage(
-                        model = thumbnailUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.FillBounds,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .blur(60.dp)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.3f))
-                    )
-                }
-            }
-        } else if (playerBackground == PlayerBackgroundStyle.GRADIENT) {
-            Crossfade(
-                targetState = gradientColors,
-                animationSpec = tween(600)
-            ) { colors ->
-                if (colors.isNotEmpty()) {
-                    val gradientColorStops = if (colors.size >= 3) {
-                        arrayOf(
-                            0.0f to colors[0], // Top
-                            0.5f to colors[1], // Middle
-                            1.0f to colors[2]  // Bottom
-                        )
-                    } else {
-                        arrayOf(
-                            0.0f to colors[0], // Top
-                            0.6f to colors[0].copy(alpha = 0.7f), // Middle
-                            1.0f to Color.Black // Bottom
-                        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(backgroundAlpha)
+        ) {
+            when (playerBackground) {
+                PlayerBackgroundStyle.BLUR -> {
+                    Crossfade(
+                        targetState = mediaMetadata.thumbnailUrl,
+                        animationSpec = tween(600)
+                    ) { thumbnailUrl ->
+                        if (thumbnailUrl != null) {
+                            AsyncImage(
+                                model = thumbnailUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.FillBounds,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .blur(220.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f))
+                            )
+                        }
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Brush.verticalGradient(colorStops = gradientColorStops))
-                            .background(Color.Black.copy(alpha = 0.2f))
-                    )
                 }
+                PlayerBackgroundStyle.GRADIENT -> {
+                    Crossfade(
+                        targetState = gradientColors,
+                        animationSpec = tween(600)
+                    ) { colors ->
+                        if (colors.isNotEmpty()) {
+                            val gradientColorStops = if (colors.size >= 3) {
+                                arrayOf(0.0f to colors[0], 0.5f to colors[1], 1.0f to colors[2])
+                            } else {
+                                arrayOf(0.0f to colors[0], 0.6f to colors[0].copy(alpha = 0.7f), 1.0f to Color.Black)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Brush.verticalGradient(colorStops = gradientColorStops))
+                                    .background(Color.Black.copy(alpha = 0.2f))
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    // DEFAULT background
+                }
+            }
+
+            if (playerBackground != PlayerBackgroundStyle.DEFAULT) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f))
+                )
             }
         }
 
-        if (playerBackground != PlayerBackgroundStyle.DEFAULT) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f))
-            )
-        }
-
-        // Check orientation and layout accordingly
         when (LocalConfiguration.current.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> {
-                // Landscape layout - split screen horizontally
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.systemBars)
                 ) {
-                    // Unified header across full width
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp, vertical = 16.dp)
-                            .zIndex(1f),  // Ensure header is above content
+                            .zIndex(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Down arrow button (left)
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
-                                    indication = ripple(
-                                        bounded = true,
-                                        radius = 16.dp
-                                    )
+                                    indication = ripple(bounded = true, radius = 16.dp)
                                 ) { onBackClick() },
                             contentAlignment = Alignment.Center
                         ) {
@@ -366,8 +326,6 @@ fun LyricsScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        
-                        // Now Playing info in center
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.weight(1f)
@@ -379,23 +337,18 @@ fun LyricsScreen(
                             )
                             Text(
                                 text = mediaMetadata.title,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = textBackgroundColor.copy(alpha = 0.8f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        
-                        // More button (right)
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
-                                    indication = ripple(
-                                        bounded = true,
-                                        radius = 16.dp
-                                    )
+                                    indication = ripple(bounded = true, radius = 16.dp)
                                 ) {
                                     menuState.show {
                                         LyricsMenu(
@@ -416,33 +369,18 @@ fun LyricsScreen(
                             )
                         }
                     }
-                    
-                    // Main content row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                    ) {
-                        // Right side - Lyrics only
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                        ) {
-                            // Lyrics content - centered in landscape
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp),
-                                contentAlignment = Alignment.Center  // Center lyrics in landscape
+                                contentAlignment = Alignment.Center
                             ) {
-                                Lyrics(
-                                    sliderPositionProvider = { sliderPosition }
-                                )
+                                Lyrics(sliderPositionProvider = { sliderPosition })
                             }
                         }
-                        
-                        // Left side - Controls only (from slider to volume)
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -451,15 +389,12 @@ fun LyricsScreen(
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Slider
                             when (sliderStyle) {
                                 SliderStyle.DEFAULT -> {
                                     Slider(
                                         value = (sliderPosition ?: position).toFloat(),
                                         valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                                        onValueChange = {
-                                            sliderPosition = it.toLong()
-                                        },
+                                        onValueChange = { sliderPosition = it.toLong() },
                                         onValueChangeFinished = {
                                             sliderPosition?.let {
                                                 player.seekTo(it)
@@ -475,9 +410,7 @@ fun LyricsScreen(
                                     SquigglySlider(
                                         value = (sliderPosition ?: position).toFloat(),
                                         valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                                        onValueChange = {
-                                            sliderPosition = it.toLong()
-                                        },
+                                        onValueChange = { sliderPosition = it.toLong() },
                                         onValueChangeFinished = {
                                             sliderPosition?.let {
                                                 player.seekTo(it)
@@ -497,9 +430,7 @@ fun LyricsScreen(
                                     Slider(
                                         value = (sliderPosition ?: position).toFloat(),
                                         valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                                        onValueChange = {
-                                            sliderPosition = it.toLong()
-                                        },
+                                        onValueChange = { sliderPosition = it.toLong() },
                                         onValueChangeFinished = {
                                             sliderPosition?.let {
                                                 player.seekTo(it)
@@ -518,8 +449,6 @@ fun LyricsScreen(
                                     )
                                 }
                             }
-
-                            // Time display below slider
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -528,19 +457,16 @@ fun LyricsScreen(
                             ) {
                                 Text(
                                     text = makeTimeString(sliderPosition ?: position),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.titleMedium,
                                     color = textBackgroundColor.copy(alpha = 0.7f)
                                 )
                                 Text(
                                     text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.titleMedium,
                                     color = textBackgroundColor.copy(alpha = 0.7f)
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            // Control buttons
+                            Spacer(modifier = Modifier.height(18.dp))
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -548,140 +474,84 @@ fun LyricsScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Repeat button
                                 IconButton(
                                     onClick = { playerConnection.player.toggleRepeatMode() },
-                                    modifier = Modifier.size(40.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(
                                             when (repeatMode) {
-                                                Player.REPEAT_MODE_OFF, 
-                                                Player.REPEAT_MODE_ALL -> R.drawable.repeat
+                                                Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL -> R.drawable.repeat
                                                 Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
                                                 else -> R.drawable.repeat
                                             }
                                         ),
-                                        contentDescription = when (repeatMode) {
-                                            Player.REPEAT_MODE_OFF -> "Repeat Off"
-                                            Player.REPEAT_MODE_ALL -> "Repeat All"
-                                            Player.REPEAT_MODE_ONE -> "Repeat One"
-                                            else -> "Repeat"
-                                        },
-                                        tint = if (repeatMode == Player.REPEAT_MODE_OFF) {
-                                            textBackgroundColor.copy(alpha = 0.4f)
-                                        } else {
-                                            textBackgroundColor
-                                        },
-                                        modifier = Modifier.size(20.dp)
+                                        contentDescription = "Repeat",
+                                        tint = if (repeatMode == Player.REPEAT_MODE_OFF) textBackgroundColor.copy(alpha = 0.4f) else textBackgroundColor,
+                                        modifier = Modifier.size(24.dp)
                                     )
                                 }
-
-                                // Previous button
-                                IconButton(
-                                    onClick = { player.seekToPrevious() },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
+                                IconButton(onClick = { player.seekToPrevious() }, modifier = Modifier.size(48.dp)) {
                                     Icon(
                                         painter = painterResource(R.drawable.skip_previous),
                                         contentDescription = null,
                                         tint = textBackgroundColor,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(28.dp)
                                     )
                                 }
-
-                                // Play/Pause button
+   
                                 IconButton(
-                                    onClick = { player.togglePlayPause() },
-                                    modifier = Modifier.size(56.dp)
+                                    onClick = { player.togglePlayPause() }, 
+                                    modifier = Modifier.size(72.dp)
                                 ) {
-                                    Icon(
-                                        painter = painterResource(
-                                            if (isPlaying) R.drawable.pause else R.drawable.play
-                                        ),
-                                        contentDescription = if (isPlaying) "Pause" else stringResource(R.string.play),
-                                        tint = textBackgroundColor,
-                                        modifier = Modifier.size(36.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .background(
+                                                textBackgroundColor,
+                                                shape = RoundedCornerShape(50)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(if (isPlaying) R.drawable.pause else R.drawable.play),
+                                            contentDescription = "Play/Pause",
+                                            tint = iconButtonColor,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
                                 }
-
-                                // Next button
-                                IconButton(
-                                    onClick = { player.seekToNext() },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
+    
+                                IconButton(onClick = { player.seekToNext() }, modifier = Modifier.size(48.dp)) {
                                     Icon(
                                         painter = painterResource(R.drawable.skip_next),
                                         contentDescription = null,
                                         tint = textBackgroundColor,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(28.dp)
                                     )
                                 }
-
-                                // Shuffle button
                                 IconButton(
                                     onClick = { playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled },
-                                    modifier = Modifier.size(40.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.shuffle),
-                                        contentDescription = if (shuffleModeEnabled) stringResource(R.string.shuffle) else stringResource(R.string.shuffle),
-                                        tint = if (shuffleModeEnabled) {
-                                            textBackgroundColor
-                                        } else {
-                                            textBackgroundColor.copy(alpha = 0.4f)
-                                        },
-                                        modifier = Modifier.size(20.dp)
+                                        contentDescription = "Shuffle",
+                                        tint = if (shuffleModeEnabled) textBackgroundColor else textBackgroundColor.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(24.dp)
                                     )
                                 }
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            // Volume Control
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 48.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.volume_off),
-                                    contentDescription = stringResource(R.string.minimum_volume),
-                                    modifier = Modifier.size(20.dp),
-                                    tint = textBackgroundColor
-                                )
-
-                                BigSeekBar(
-                                    progressProvider = playerVolume::value,
-                                    onProgressChange = { playerConnection.service.playerVolume.value = it },
-                                    color = textBackgroundColor,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(24.dp)
-                                        .padding(horizontal = 16.dp)
-                                )
-
-                                Icon(
-                                    painter = painterResource(R.drawable.volume_up),
-                                    contentDescription = stringResource(R.string.maximum_volume),
-                                    modifier = Modifier.size(20.dp),
-                                    tint = textBackgroundColor
-                                )
                             }
                         }
                     }
                 }
             }
             else -> {
-                // Portrait layout - original layout
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(WindowInsets.systemBars.asPaddingValues())
                 ) {
-                    // Header with More button and Down arrow on opposite sides
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -689,16 +559,12 @@ fun LyricsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Down arrow button (left)
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
-                                    indication = ripple(
-                                        bounded = true,
-                                        radius = 16.dp
-                                    )
+                                    indication = ripple(bounded = true, radius = 16.dp)
                                 ) { onBackClick() },
                             contentAlignment = Alignment.Center
                         ) {
@@ -709,8 +575,6 @@ fun LyricsScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        
-                        // Centered content
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.weight(1f)
@@ -722,23 +586,18 @@ fun LyricsScreen(
                             )
                             Text(
                                 text = mediaMetadata.title,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = textBackgroundColor.copy(alpha = 0.8f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        
-                        // More button (right)
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
-                                    indication = ripple(
-                                        bounded = true,
-                                        radius = 16.dp
-                                    )
+                                    indication = ripple(bounded = true, radius = 16.dp)
                                 ) {
                                     menuState.show {
                                         LyricsMenu(
@@ -759,7 +618,6 @@ fun LyricsScreen(
                             )
                         }
                     }
-
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -767,11 +625,8 @@ fun LyricsScreen(
                             .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.TopCenter
                     ) {
-                        Lyrics(
-                            sliderPositionProvider = { sliderPosition }
-                        )
+                        Lyrics(sliderPositionProvider = { sliderPosition })
                     }
-
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -782,9 +637,7 @@ fun LyricsScreen(
                                 Slider(
                                     value = (sliderPosition ?: position).toFloat(),
                                     valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                                    onValueChange = {
-                                        sliderPosition = it.toLong()
-                                    },
+                                    onValueChange = { sliderPosition = it.toLong() },
                                     onValueChangeFinished = {
                                         sliderPosition?.let {
                                             player.seekTo(it)
@@ -800,9 +653,7 @@ fun LyricsScreen(
                                 SquigglySlider(
                                     value = (sliderPosition ?: position).toFloat(),
                                     valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                                    onValueChange = {
-                                        sliderPosition = it.toLong()
-                                    },
+                                    onValueChange = { sliderPosition = it.toLong() },
                                     onValueChangeFinished = {
                                         sliderPosition?.let {
                                             player.seekTo(it)
@@ -822,9 +673,7 @@ fun LyricsScreen(
                                 Slider(
                                     value = (sliderPosition ?: position).toFloat(),
                                     valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                                    onValueChange = {
-                                        sliderPosition = it.toLong()
-                                    },
+                                    onValueChange = { sliderPosition = it.toLong() },
                                     onValueChangeFinished = {
                                         sliderPosition?.let {
                                             player.seekTo(it)
@@ -843,8 +692,6 @@ fun LyricsScreen(
                                 )
                             }
                         }
-
-                        // Time display below slider
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -853,153 +700,91 @@ fun LyricsScreen(
                         ) {
                             Text(
                                 text = makeTimeString(sliderPosition ?: position),
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = textBackgroundColor.copy(alpha = 0.7f)
                             )
                             Text(
                                 text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = textBackgroundColor.copy(alpha = 0.7f)
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Optimized control buttons for better fit
+                        Spacer(modifier = Modifier.height(18.dp))
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp), // Reduced padding
-                            horizontalArrangement = Arrangement.SpaceEvenly, // Even distribution
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Repeat button with clear state indication
                             IconButton(
                                 onClick = { playerConnection.player.toggleRepeatMode() },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     painter = painterResource(
                                         when (repeatMode) {
-                                            Player.REPEAT_MODE_OFF, 
-                                            Player.REPEAT_MODE_ALL -> R.drawable.repeat
+                                            Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL -> R.drawable.repeat
                                             Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
                                             else -> R.drawable.repeat
                                         }
                                     ),
-                                    contentDescription = when (repeatMode) {
-                                        Player.REPEAT_MODE_OFF -> "Repeat Off"
-                                        Player.REPEAT_MODE_ALL -> "Repeat All"
-                                        Player.REPEAT_MODE_ONE -> "Repeat One"
-                                        else -> "Repeat"
-                                    },
-                                    tint = if (repeatMode == Player.REPEAT_MODE_OFF) {
-                                        // Inactive state - low opacity
-                                        textBackgroundColor.copy(alpha = 0.4f)
-                                    } else {
-                                        // Active state - full brightness
-                                        textBackgroundColor
-                                    },
-                                    modifier = Modifier.size(20.dp)
+                                    contentDescription = "Repeat",
+                                    tint = if (repeatMode == Player.REPEAT_MODE_OFF) textBackgroundColor.copy(alpha = 0.4f) else textBackgroundColor,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
-
-                            // Previous button
-                            IconButton(
-                                onClick = { player.seekToPrevious() },
-                                modifier = Modifier.size(40.dp) // Slightly smaller
-                            ) {
+                            IconButton(onClick = { player.seekToPrevious() }, modifier = Modifier.size(48.dp)) {
                                 Icon(
                                     painter = painterResource(R.drawable.skip_previous),
                                     contentDescription = null,
                                     tint = textBackgroundColor,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
-
-                            // Play/Pause button (largest)
+   
                             IconButton(
-                                onClick = { player.togglePlayPause() },
-                                modifier = Modifier.size(56.dp) // Slightly smaller but still prominent
+                                onClick = { player.togglePlayPause() }, 
+                                modifier = Modifier.size(72.dp)
                             ) {
-                                Icon(
-                                    painter = painterResource(
-                                        if (isPlaying) R.drawable.pause else R.drawable.play
-                                    ),
-                                    contentDescription = if (isPlaying) "Pause" else stringResource(R.string.play),
-                                    tint = textBackgroundColor,
-                                    modifier = Modifier.size(36.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .background(
+                                            textBackgroundColor,
+                                            shape = RoundedCornerShape(50)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(if (isPlaying) R.drawable.pause else R.drawable.play),
+                                        contentDescription = "Play/Pause",
+                                        tint = iconButtonColor,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
                             }
-
-                            // Next button
-                            IconButton(
-                                onClick = { player.seekToNext() },
-                                modifier = Modifier.size(40.dp) // Slightly smaller
-                            ) {
+    
+                            IconButton(onClick = { player.seekToNext() }, modifier = Modifier.size(48.dp)) {
                                 Icon(
                                     painter = painterResource(R.drawable.skip_next),
                                     contentDescription = null,
                                     tint = textBackgroundColor,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
-
-                            // Shuffle button with clear state indication
                             IconButton(
                                 onClick = { playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     painter = painterResource(R.drawable.shuffle),
-                                    contentDescription = if (shuffleModeEnabled) stringResource(R.string.shuffle) else stringResource(R.string.shuffle),
-                                    tint = if (shuffleModeEnabled) {
-                                        // Active state - full brightness
-                                        textBackgroundColor
-                                    } else {
-                                        // Inactive state - low opacity
-                                        textBackgroundColor.copy(alpha = 0.4f)
-                                    },
-                                    modifier = Modifier.size(20.dp)
+                                    contentDescription = "Shuffle",
+                                    tint = if (shuffleModeEnabled) textBackgroundColor else textBackgroundColor.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(24.dp)) // Proper spacing
-
-                        // Volume Control
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 48.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.volume_off),
-                                contentDescription = stringResource(R.string.minimum_volume),
-                                modifier = Modifier.size(20.dp),
-                                tint = textBackgroundColor
-                            )
-
-                            BigSeekBar(
-                                progressProvider = playerVolume::value,
-                                onProgressChange = { playerConnection.service.playerVolume.value = it },
-                                color = textBackgroundColor,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(20.dp)
-                                    .padding(horizontal = 16.dp)
-                            )
-
-                            Icon(
-                                painter = painterResource(R.drawable.volume_up),
-                                contentDescription = stringResource(R.string.maximum_volume),
-                                modifier = Modifier.size(20.dp),
-                                tint = textBackgroundColor
-                            )
-                        }
-
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }

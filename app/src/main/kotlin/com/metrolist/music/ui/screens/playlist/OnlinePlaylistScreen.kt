@@ -227,7 +227,7 @@ fun OnlinePlaylistScreen(
         ) {
             playlist.let { playlist ->
                 if (isLoading) {
-                    item {
+                    item(key = "loading_shimmer") {
                         ShimmerHost {
                             Column(Modifier.padding(12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -268,7 +268,7 @@ fun OnlinePlaylistScreen(
                     }
                 } else if (playlist != null) {
                     if (!isSearching) {
-                        item {
+                        item(key = "playlist_header") {
                             Column(
                                 modifier =
                                 Modifier
@@ -468,7 +468,7 @@ fun OnlinePlaylistScreen(
 
                     if (songs.isEmpty() && !isLoading && error == null) {
                         // Show empty playlist message when playlist is loaded but has no songs
-                        item {
+                        item(key = "empty_playlist") {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -550,7 +550,7 @@ fun OnlinePlaylistScreen(
                     }
 
                     if (viewModel.continuation != null && songs.isNotEmpty() && isLoadingMore) {
-                        item {
+                        item(key = "loading_more") {
                             ShimmerHost {
                                 repeat(2) {
                                     ListItemPlaceHolder()
@@ -561,7 +561,7 @@ fun OnlinePlaylistScreen(
 
                 } else {
                     // Show error state when playlist is null and there's an error
-                    item {
+                    item(key = "error_state") {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
