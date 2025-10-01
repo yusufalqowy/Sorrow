@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -142,7 +143,7 @@ class PlayerWidgetCircle : GlanceAppWidget() {
     }
 
     @Composable
-    fun OneByOneWidgetLayout(
+    private fun OneByOneWidgetLayout(
         modifier: GlanceModifier,
         bgCornerRadius: Dp,
         metadata: WidgetMetadata
@@ -153,7 +154,7 @@ class PlayerWidgetCircle : GlanceAppWidget() {
 
         LaunchedEffect(isButtonVisible) {
             if (isButtonVisible && bitmapData != null) {
-                delay(6000)
+                delay(5000)
                 isButtonVisible = false
             }
         }
@@ -207,9 +208,10 @@ class PlayerWidgetCircle : GlanceAppWidget() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    /*if (metadata.isLoading && !metadata.isPlaying) {
+                    val isLoading by WidgetMetadataState.isLoading(LocalContext.current).collectAsState(false)
+                    if (isLoading) {
                         CircularProgressIndicator(modifier = GlanceModifier.size(appIconSize), color = GlanceTheme.colors.primary)
-                    }*/
+                    }
                 }
                 Row(
                     modifier = GlanceModifier.fillMaxWidth(),
@@ -232,7 +234,7 @@ class PlayerWidgetCircle : GlanceAppWidget() {
     }
 
     @Composable
-    fun ButtonGlance(
+    private fun ButtonGlance(
         modifier: GlanceModifier = GlanceModifier,
         @DrawableRes iconResource: Int,
         size: Dp = 40.dp,
@@ -261,7 +263,7 @@ class PlayerWidgetCircle : GlanceAppWidget() {
         }
     }
 
-    fun getBitmap(bitmapData: ByteArray?, context: Context, size: DpSize): Bitmap? {
+    private fun getBitmap(bitmapData: ByteArray?, context: Context, size: DpSize): Bitmap? {
         val resource = context.resources
         return bitmapData?.let { data ->
             val cacheKey = AlbumArtBitmapCache.getKey(data)
@@ -315,7 +317,7 @@ class PlayerWidgetCircle : GlanceAppWidget() {
         }
     }
 
-    fun getColorProviders(context: Context, baseColor: Color): ColorProviders {
+    private fun getColorProviders(context: Context, baseColor: Color): ColorProviders {
         val isDarkTheme = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val scheme = baseColor.toDynamicScheme(
             isDark = isDarkTheme,

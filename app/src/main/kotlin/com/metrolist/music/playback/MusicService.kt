@@ -117,6 +117,7 @@ import com.metrolist.music.extensions.setOffloadEnabled
 import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.extensions.toPersistQueue
 import com.metrolist.music.extensions.toQueue
+import com.metrolist.music.extensions.togglePlayPause
 import com.metrolist.music.lyrics.LyricsHelper
 import com.metrolist.music.models.PersistPlayerState
 import com.metrolist.music.models.PersistQueue
@@ -166,6 +167,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.time.LocalDateTime
@@ -1072,6 +1074,7 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
+        updateWidgetLoading(playbackState == Player.STATE_BUFFERING)
         // Save state when playback state changes
         if (dataStore.get(PersistentQueueKey, true)) {
             saveQueueToDisk()
@@ -1480,29 +1483,23 @@ class MusicService :
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = mediaSession
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
+        requestWidgetFullUpdate()
         super.onIsPlayingChanged(isPlaying)
-        requestWidgetFullUpdate()
-    }
-
-    override fun onIsLoadingChanged(isLoading: Boolean) {
-        super.onIsLoadingChanged(isLoading)
-        requestWidgetFullUpdate()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.action?.let { action ->
             val player = mediaSession.player
-            val hasItemToPlay = !player.currentTimeline.isEmpty && player.currentMediaItemIndex != C.INDEX_UNSET
-
             when (action) {
-                PlayerActions.PLAY_PAUSE -> {
-                    if (hasItemToPlay) {
-                        player.playWhenReady = !player.playWhenReady
-                    }
+                PlayerActions.PLAY_PAUSE -> player.togglePlayPause()
+                PlayerActions.NEXT -> {
+                    updateWidgetLoading(true)
+                    player.seekToNext()
                 }
-
-                PlayerActions.NEXT -> player.seekToNext()
-                PlayerActions.PREVIOUS -> player.seekToPrevious()
+                PlayerActions.PREVIOUS -> {
+                    updateWidgetLoading(true)
+                    player.seekToPrevious()
+                }
             }
         }
         return super.onStartCommand(intent, flags, startId)
@@ -1518,6 +1515,18 @@ class MusicService :
         }
     }
 
+    private fun updateWidgetLoading(isLoading: Boolean){
+        scope.launch {
+            WidgetMetadataState.setLoading(applicationContext, isLoading)
+            val glanceManager = GlanceAppWidgetManager(applicationContext)
+            glanceManager.getGlanceIds(PlayerWidgetSquare::class.java).forEach {
+                PlayerWidgetSquare().update(applicationContext, it)
+            }
+            glanceManager.getGlanceIds(PlayerWidgetCircle::class.java).forEach {
+                PlayerWidgetCircle().update(applicationContext, it)
+            }
+        }
+    }
 
     private suspend fun processWidgetUpdateInternal() {
         updateGlanceWidgets(buildWidgetMetadata())
@@ -1532,7 +1541,7 @@ class MusicService :
         val artworkUri = currentItem?.mediaMetadata?.artworkUri
         val artworkData = currentItem?.mediaMetadata?.artworkData
         val (artBytes, bitmap) = getWidgetThumbnail(artworkData, artworkUri)
-        val baseColor = withContext(Dispatchers.Main){ bitmap?.extractThemeColor() }
+        val baseColor = withContext(Dispatchers.Main) { bitmap?.extractThemeColor() }
 
         return WidgetMetadata(
             id = metadata?.id,
@@ -1540,9 +1549,6 @@ class MusicService :
             artists = metadata?.artists?.joinToString(", ") { it.name },
             thumbnailUrl = artworkUri.toString(),
             thumbnailBitmapData = artBytes,
-            albumId = metadata?.album?.id,
-            explicit = metadata?.explicit ?: false,
-            liked = metadata?.liked ?: false,
             isPlaying = isPlaying,
             isLoading = isLoading,
             baseColor = baseColor?.value
@@ -1552,7 +1558,6 @@ class MusicService :
     private suspend fun updateGlanceWidgets(widgetMetadata: WidgetMetadata) = withContext(Dispatchers.IO) {
         try {
             val glanceManager = GlanceAppWidgetManager(applicationContext)
-
             val squareGlanceIds = glanceManager.getGlanceIds(PlayerWidgetSquare::class.java)
             val circleGlanceIds = glanceManager.getGlanceIds(PlayerWidgetCircle::class.java)
             if (squareGlanceIds.isNotEmpty()) {
@@ -1598,6 +1603,7 @@ class MusicService :
 
     private suspend fun loadBitmapDataFromUri(context: Context, uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
         try {
+            val maxSize = 50 * 1024L // Max compress file 50Kb
             val request = ImageRequest.Builder(context).data(uri).allowHardware(false).build()
             val drawable = context.imageLoader.execute(request).image?.asDrawable(context.resources)
             drawable?.let {
@@ -1618,14 +1624,14 @@ class MusicService :
                         outputBytes = outputStream.toByteArray()
                         quality -= (quality * 0.1).roundToInt()
                     }
-                } while(isActive &&
-                    outputBytes.size > 200 * 1024L &&
+                } while (isActive &&
+                    outputBytes.size > maxSize &&
                     quality > 5
                 )
                 outputBytes
             }
         } catch (e: Exception) {
-            Timber.tag("Get Bitmap").e(e, "Fallo al cargar bitmap desde URI: $uri")
+            Timber.e(e, "Failed get bitmap: $uri")
             null
         }
     }

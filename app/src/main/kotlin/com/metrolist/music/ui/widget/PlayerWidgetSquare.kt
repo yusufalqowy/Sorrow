@@ -5,11 +5,11 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.session.PlaybackState
 import android.util.LruCache
 import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -124,18 +124,18 @@ class PlayerWidgetSquare : GlanceAppWidget() {
     }
 
     @Composable
-    fun OneByOneWidgetLayout(
+   private fun OneByOneWidgetLayout(
         modifier: GlanceModifier,
         bgCornerRadius: Dp,
         metadata: WidgetMetadata
     ) {
         val bitmapData = metadata.thumbnailBitmapData
-        var isButtonVisible by remember { mutableStateOf(true) }
+        var isButtonVisible by remember { mutableStateOf(bitmapData == null) }
         val imageProvider = getBitmap(bitmapData, LocalContext.current, LocalSize.current)?.let { ImageProvider(it) }
 
         LaunchedEffect(isButtonVisible) {
             if (isButtonVisible && bitmapData != null) {
-                delay(6000)
+                delay(5000)
                 isButtonVisible = false
             }
         }
@@ -152,7 +152,7 @@ class PlayerWidgetSquare : GlanceAppWidget() {
         ) {
             if (imageProvider != null) {
                 Image(modifier = GlanceModifier.fillMaxSize(), provider = imageProvider, contentDescription = null, contentScale = ContentScale.Crop)
-            }else{
+            } else {
                 val appIconSize = LocalSize.current.width.div(4).minus(8.dp)
                 Box(
                     contentAlignment = Alignment.Center,
@@ -199,6 +199,7 @@ class PlayerWidgetSquare : GlanceAppWidget() {
                     }
                 }
             }
+            val isLoading by WidgetMetadataState.isLoading(LocalContext.current).collectAsState(false)
 
             val buttonSize = LocalSize.current.width.minus(64.dp).value.div(3).dp
             if (isButtonVisible) {
@@ -213,7 +214,7 @@ class PlayerWidgetSquare : GlanceAppWidget() {
                         onClick = actionRunCallback<PlayerControlActionCallback>(actionParametersOf(PlayerActions.key to PlayerActions.PREVIOUS))
                     )
                     Spacer(modifier = GlanceModifier.width(12.dp))
-                    if (/*metadata.isLoading && !metadata.isPlaying*/ false) {
+                    if (isLoading) {
                         CircularProgressIndicator(modifier = GlanceModifier.size(buttonSize), color = GlanceTheme.colors.primary)
                     } else {
                         ButtonGlance(
@@ -239,7 +240,7 @@ class PlayerWidgetSquare : GlanceAppWidget() {
     }
 
     @Composable
-    fun ButtonGlance(
+    private fun ButtonGlance(
         modifier: GlanceModifier = GlanceModifier,
         @DrawableRes iconResource: Int,
         size: Dp = 40.dp,
@@ -268,7 +269,7 @@ class PlayerWidgetSquare : GlanceAppWidget() {
         }
     }
 
-    fun getBitmap(bitmapData: ByteArray?, context: Context, size: DpSize): Bitmap? {
+    private fun getBitmap(bitmapData: ByteArray?, context: Context, size: DpSize): Bitmap? {
         val resource = context.resources
         return bitmapData?.let { data ->
             val cacheKey = AlbumArtBitmapCache.getKey(data)
@@ -322,7 +323,7 @@ class PlayerWidgetSquare : GlanceAppWidget() {
         }
     }
 
-    fun getColorProviders(context: Context, baseColor: Color): ColorProviders {
+    private fun getColorProviders(context: Context, baseColor: Color): ColorProviders {
         val isDarkTheme = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val scheme = baseColor.toDynamicScheme(
             isDark = isDarkTheme,
