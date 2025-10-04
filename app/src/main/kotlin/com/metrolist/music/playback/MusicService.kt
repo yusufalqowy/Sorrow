@@ -2,10 +2,13 @@
 
 package com.metrolist.music.playback
 
+import android.app.Notification
 import android.app.PendingIntent
+import android.app.Service
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.database.SQLException
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -21,6 +24,8 @@ import android.os.Binder
 import android.os.Build
 import android.util.Log
 import androidx.collection.LruCache
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.getSystemService
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
@@ -1562,21 +1567,57 @@ class MusicService :
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         intent?.action?.let { action ->
+            val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+                .setSmallIcon(R.drawable.small_icon)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+                .setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
+                notification.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_DEFAULT)
+            }
+
+            ServiceCompat.startForeground(this, 666, notification.build(), if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0)
+
             val player = mediaSession.player
             when (action) {
                 PlayerActions.PLAY_PAUSE -> player.togglePlayPause()
                 PlayerActions.NEXT -> {
-                    updateWidgetLoading(true)
-                    player.seekToNext()
+                    if (canSkipNext()){
+                        updateWidgetLoading(true)
+                        player.prepare()
+                        player.seekToNext()
+                    }
                 }
                 PlayerActions.PREVIOUS -> {
-                    updateWidgetLoading(true)
-                    player.seekToPrevious()
+                    if (canSkipPrevious()){
+                        updateWidgetLoading(true)
+                        player.prepare()
+                        player.seekToPrevious()
+                    }
                 }
             }
         }
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
+    }
+
+    private fun canSkipPrevious(): Boolean{
+        return if (!player.currentTimeline.isEmpty){
+            val window = player.currentTimeline.getWindow(player.currentMediaItemIndex, Timeline.Window())
+            player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) || !window.isLive || player.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+        }else{
+            false
+        }
+    }
+
+    private fun canSkipNext(): Boolean{
+        return if (!player.currentTimeline.isEmpty){
+            val window = player.currentTimeline.getWindow(player.currentMediaItemIndex, Timeline.Window())
+            window.isLive && window.isDynamic || player.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+        }else{
+            false
+        }
     }
 
     private fun requestWidgetFullUpdate(force: Boolean = false) {

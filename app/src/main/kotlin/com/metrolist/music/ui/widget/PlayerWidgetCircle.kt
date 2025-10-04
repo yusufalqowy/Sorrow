@@ -120,7 +120,7 @@ class PlayerWidgetCircle : GlanceAppWidget() {
                 }
             }
             GlanceTheme(
-                colors = colors ?: GlanceTheme.colors
+                colors = animatedColorProviders(colors ?: GlanceTheme.colors)
             ) {
                 PlayerWidgetContent(metadata)
             }
@@ -315,44 +315,5 @@ class PlayerWidgetCircle : GlanceAppWidget() {
             }
             bitmap
         }
-    }
-
-    private fun getColorProviders(context: Context, baseColor: Color): ColorProviders {
-        val isDarkTheme = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        val scheme = baseColor.toDynamicScheme(
-            isDark = isDarkTheme,
-            specVersion = ColorSpec.SpecVersion.SPEC_2025,
-            style = PaletteStyle.TonalSpot
-        )
-
-        return colorProviders(
-            widgetBackground = ColorProvider(Color.Unspecified),
-            primary = ColorProvider(Color(scheme.primary)),
-            onPrimary = ColorProvider(Color(scheme.onPrimary)),
-            primaryContainer = ColorProvider(Color(scheme.primaryContainer)),
-            onPrimaryContainer = ColorProvider(Color(scheme.onPrimaryContainer)),
-            secondary = ColorProvider(Color(scheme.secondary)),
-            onSecondary = ColorProvider(Color(scheme.onSecondary)),
-            secondaryContainer = ColorProvider(Color(scheme.secondaryContainer)),
-            onSecondaryContainer = ColorProvider(Color(scheme.onSecondaryContainer)),
-            tertiary = ColorProvider(Color(scheme.tertiary)),
-            onTertiary = ColorProvider(Color(scheme.onTertiary)),
-            tertiaryContainer = ColorProvider(Color(scheme.tertiaryContainer)),
-            onTertiaryContainer = ColorProvider(Color(scheme.onTertiaryContainer)),
-            error = ColorProvider(Color(scheme.error)),
-            errorContainer = ColorProvider(Color(scheme.errorContainer)),
-            onError = ColorProvider(Color(scheme.onError)),
-            onErrorContainer = ColorProvider(Color(scheme.onErrorContainer)),
-            background = ColorProvider(Color(scheme.background)),
-            onBackground = ColorProvider(Color(scheme.onBackground)),
-            surface = ColorProvider(Color(scheme.surface)),
-            onSurface = ColorProvider(Color(scheme.onSurface)),
-            surfaceVariant = ColorProvider(Color(scheme.surfaceVariant)),
-            onSurfaceVariant = ColorProvider(Color(scheme.onSurfaceVariant)),
-            outline = ColorProvider(Color(scheme.outline)),
-            inverseOnSurface = ColorProvider(Color(scheme.inverseOnSurface)),
-            inverseSurface = ColorProvider(Color(scheme.inverseSurface)),
-            inversePrimary = ColorProvider(Color(scheme.inversePrimary)),
-        )
     }
 }
